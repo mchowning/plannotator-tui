@@ -30,10 +30,17 @@ pub(super) struct ReviewCounts {
 }
 
 impl ReviewCounts {
+    /// Counts what a send carries: placed annotations and detached threads.
     pub(super) fn for_store(store: &Store) -> Self {
-        let placed = store.placed();
-        let pending = placed.iter().filter(|p| store.is_pending(p.annotation)).count();
-        Self { pending, sent: placed.len() - pending, archived: store.archived().len() }
+        let threads = store.threads().unwrap_or_default();
+        let sendable: Vec<&plannotator_tui_schema::Annotation> = store
+            .placed()
+            .iter()
+            .map(|p| p.annotation)
+            .chain(threads.iter().filter(|t| t.detached).map(|t| t.annotation))
+            .collect();
+        let pending = sendable.iter().filter(|a| store.is_pending(a)).count();
+        Self { pending, sent: sendable.len() - pending, archived: store.archived().len() }
     }
 }
 

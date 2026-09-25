@@ -237,3 +237,24 @@ fn the_footer_names_s_only_in_a_reply_review_and_fits_at_80_columns() {
         std::fs::remove_dir_all(root).expect("cleanup");
     }
 }
+
+#[test]
+fn an_unattached_review_counts_a_detached_thread_it_will_send() {
+    let (root, mut app, delivery) = file_app("detached-count");
+    let path = root.join("docs/a.md");
+    std::fs::write(&path, "# Plan\n\none\n\nfour\n").expect("doc");
+    crate::app::review_test_support::reopen(&mut app);
+    app.add_quote_annotation("four", Kind::Comment, "Where did four go?".into()).expect("thread");
+    let id = app.open.store.placed()[0].annotation.id.clone();
+    app.open.store.thread_key(&id).expect("thread");
+    std::fs::write(&path, "# Plan\n\none\n").expect("delete four");
+    press(&mut app, 'r');
+
+    assert_eq!(app.send_count(), 1, "the detached thread is new");
+    assert!(app.has_unsent(), "quitting asks first");
+    assert!(draw(&mut app, 160, 45).contains("Send 1 new"));
+
+    press(&mut app, 'E');
+    assert!(delivery.calls.borrow()[0].contains("Thread on: \"four\""), "the body carries it");
+    assert_eq!(app.send_count(), 0, "once sent it is no longer new");
+}
