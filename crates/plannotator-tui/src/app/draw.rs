@@ -372,6 +372,9 @@ impl App {
         // `S` is bound only in a reply review, so only a reply review names it.
         let quit = if self.is_file_review() { "q quit " } else { "S send+quit · q quit " };
         let help = match self.focus {
+            _ if matches!(self.mode, Mode::Thread(_)) => {
+                "enter reply · ctrl-r retry · pgup/pgdn scroll · esc close ".to_owned()
+            }
             _ if self.pending.is_some() => "a looks good · c comment · d delete · esc clear ".to_owned(),
             Focus::Tree => "j/k · enter open · . hidden · E send · t hide · q quit ".to_owned(),
             Focus::Rail => format!("j/k · e edit · x remove · tab · {quit}"),

@@ -141,11 +141,8 @@ impl App {
         };
         let read_only = thread.state == ThreadState::Historical;
         frame.render_widget(Clear, area);
-        let title = if read_only {
-            " thread · read-only · pgup/pgdn scroll · esc closes "
-        } else {
-            " thread · enter replies · ctrl-r retries · pgup/pgdn scroll · esc closes "
-        };
+        // The footer lists the keys; the title only has to say what this is.
+        let title = if read_only { " thread · read-only · esc closes " } else { " thread · esc closes " };
         let outer = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)

@@ -180,6 +180,9 @@ impl App {
     pub(super) fn send_label(&self) -> String {
         let target = self.delivery.describe();
         let count = self.send_count();
+        if self.attached_session().is_some() {
+            return format!("Send {} new ▸ pi (E)", self.file_feedback(SendScope::Pending).count);
+        }
         if self.is_file_review() {
             let verb = if self.delivery.is_agent() { "Send" } else { "Copy" };
             let across = if self.tree.is_some() {

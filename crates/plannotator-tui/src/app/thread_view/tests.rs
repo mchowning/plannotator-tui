@@ -215,3 +215,13 @@ fn every_thread_action_is_on_disk_at_once_and_a_reopen_restores_it_all() {
     assert_eq!(thread["fork"]["session_path"], "/tmp/fork.jsonl");
     assert_eq!(thread["turn"]["status"], "failed");
 }
+
+#[test]
+fn the_panel_title_fits_and_the_footer_names_the_panel_keys() {
+    let (_root, mut app, _) = thread_app("panel-help");
+    key(&mut app, KeyCode::Enter);
+    let screen = draw(&mut app, 160, 45);
+    assert!(screen.contains(" thread · esc closes "), "{screen}");
+    let footer = screen.lines().last().expect("footer");
+    assert!(footer.contains("enter reply · ctrl-r retry · pgup/pgdn scroll · esc close"), "{footer}");
+}

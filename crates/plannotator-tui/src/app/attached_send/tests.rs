@@ -144,3 +144,11 @@ fn a_send_refused_by_an_undelivered_handoff_stays_open_and_says_why() {
     assert!(!app.quit);
     assert!(app.status.as_deref().is_some_and(|s| s.contains("pi-old")), "{:?}", app.status);
 }
+
+#[test]
+fn the_send_button_names_pi_in_an_attached_review() {
+    let (_root, mut app, _) = review("button");
+    let screen = draw(&mut app, 160, 45);
+    assert!(screen.contains("Send 4 new ▸ pi (E)"), "{screen}");
+    assert!(!screen.contains("Copy"));
+}
