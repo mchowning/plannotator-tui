@@ -177,3 +177,41 @@ fn a_detached_thread_opens_and_takes_replies() {
     key(&mut app, KeyCode::Enter);
     assert_eq!(record(&app)["annotations"][0]["replies"][0]["body"], "Still relevant?");
 }
+
+#[test]
+fn every_thread_action_is_on_disk_at_once_and_a_reopen_restores_it_all() {
+    let (_root, mut app, id) = thread_app("persist");
+    let after_start = record(&app);
+    assert_eq!(after_start["annotations"][0]["plannotator_tui_thread"]["state"], "live");
+
+    let fork = plannotator_tui_schema::Fork {
+        session_path: "/tmp/fork.jsonl".into(),
+        origin_session: "main".into(),
+        fork_point: "main.jsonl#e1".into(),
+        model: "claude-bridge/claude-haiku-4-5".into(),
+        thinking: "low".into(),
+    };
+    app.open.store.set_fork(&id, fork).expect("fork");
+    app.open.store.add_agent_reply(&id, &id, "Two follows one.".into()).expect("reply");
+    key(&mut app, KeyCode::Enter);
+    type_text(&mut app, "And three?");
+    key(&mut app, KeyCode::Enter);
+    assert_eq!(
+        record(&app)["annotations"][0]["replies"][1]["body"],
+        "And three?",
+        "saved before the next key"
+    );
+    app.open
+        .store
+        .set_turn(&id, Turn::Failed { detail: "rate limited (429)".into(), retryable: true })
+        .expect("fail");
+
+    let before = record(&app);
+    let threads_before = format!("{:?}", app.open.store.threads().expect("threads"));
+    reopen(&mut app);
+    assert_eq!(record(&app), before);
+    assert_eq!(format!("{:?}", app.open.store.threads().expect("threads")), threads_before);
+    let thread = &before["annotations"][0]["plannotator_tui_thread"];
+    assert_eq!(thread["fork"]["session_path"], "/tmp/fork.jsonl");
+    assert_eq!(thread["turn"]["status"], "failed");
+}
