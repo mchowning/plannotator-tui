@@ -2,12 +2,14 @@
 //!
 //! `# Annotations on <name>`, then one `## Annotation N (line X)` per annotation in document
 //! order: what kind of note it is, the quoted text, and the body as a blockquote. Deleted
-//! text is fenced so quoted markdown cannot escape.
+//! text is fenced so quoted markdown cannot escape. A thread is its passage and its
+//! messages labeled by author; one whose passage is gone comes last, marked as such.
 
 use std::fmt::Write as _;
 use std::ops::Range;
 
-use plannotator_tui_schema::{Annotation, Kind};
+use plannotator_tui_schema::thread::{Author, messages};
+use plannotator_tui_schema::{Annotation, Kind, Thread};
 
 /// One annotation placed in the document, as the exporter needs it.
 pub(crate) struct Entry<'a> {
@@ -17,8 +19,21 @@ pub(crate) struct Entry<'a> {
     pub(crate) lines: (usize, usize),
 }
 
+/// The body with no detached threads; the app always goes through
+/// `feedback_with_detached`.
+#[cfg(test)]
 pub(crate) fn feedback(source: &str, name: &str, entries: &[Entry<'_>]) -> String {
-    if entries.is_empty() {
+    feedback_with_detached(source, name, entries, &[])
+}
+
+/// `feedback`, followed by threads whose passage no longer resolves.
+pub(crate) fn feedback_with_detached(
+    source: &str,
+    name: &str,
+    entries: &[Entry<'_>],
+    detached: &[&Annotation],
+) -> String {
+    if entries.is_empty() && detached.is_empty() {
         return "No annotations.".to_owned();
     }
     let mut out = format!("# Annotations on {name}\n\n");
@@ -29,6 +44,10 @@ pub(crate) fn feedback(source: &str, name: &str, entries: &[Entry<'_>]) -> Strin
             (a, b) => format!("lines {a}\u{2013}{b}"),
         };
         let _ = writeln!(out, "## Annotation {} ({line_label})", i + 1);
+        if is_thread(entry.annotation) {
+            write_thread(&mut out, &single_line(quoted), entry.annotation);
+            continue;
+        }
         let body = entry.annotation.body.trim();
         match entry.annotation.anchor.kind() {
             Kind::Delete => {
@@ -53,7 +72,27 @@ pub(crate) fn feedback(source: &str, name: &str, entries: &[Entry<'_>]) -> Strin
         }
         out.push('\n');
     }
+    for (i, annotation) in detached.iter().enumerate() {
+        let _ = writeln!(out, "## Annotation {} (passage since changed)", entries.len() + i + 1);
+        write_thread(&mut out, &single_line(annotation.anchor.rendered()), annotation);
+    }
     out
+}
+
+fn is_thread(annotation: &Annotation) -> bool {
+    Thread::of(annotation).ok().flatten().is_some()
+}
+
+fn write_thread(out: &mut String, quote: &str, annotation: &Annotation) {
+    let _ = writeln!(out, "Thread on: \"{quote}\"");
+    for message in messages(annotation) {
+        let who = match message.author {
+            Author::User => "user",
+            Author::Agent => "agent",
+        };
+        let _ = writeln!(out, "- **{who}:** {}", message.body.trim().replace('\n', "\n  "));
+    }
+    out.push('\n');
 }
 
 /// A fence longer than any backtick run inside the text, so quoted markdown cannot escape.

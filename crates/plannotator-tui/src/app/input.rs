@@ -109,6 +109,10 @@ impl App {
     /// The quit confirmation: send first, quit anyway, or stay.
     fn confirm_quit_key(&mut self, key: KeyEvent) -> Result<()> {
         match key.code {
+            KeyCode::Char('y' | 'Y') | KeyCode::Enter if self.attached_session().is_some() => {
+                self.mode = Mode::Browse;
+                self.send_attached();
+            }
             KeyCode::Char('y' | 'Y') | KeyCode::Enter => {
                 self.mode = Mode::Browse;
                 self.send_and_quit()?;

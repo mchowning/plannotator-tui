@@ -325,6 +325,10 @@ impl App {
     }
 
     fn draw_footer(&mut self, frame: &mut Frame, mut area: Rect) {
+        if self.mode == Mode::ConfirmQuit && self.attached_session().is_some() {
+            frame.render_widget(Paragraph::new(Line::from(Span::raw(self.attached_question()).bold())), area);
+            return;
+        }
         if self.mode == Mode::ConfirmQuit {
             // The question owns the footer: the browse help would name keys that are not
             // live while it is up.

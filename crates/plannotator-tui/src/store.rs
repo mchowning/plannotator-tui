@@ -24,11 +24,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::doc::Document;
 
+mod handoff;
 mod lock;
 mod review;
 mod thread;
+pub(crate) use handoff::Handoff;
 use review::timestamp;
-pub(crate) use thread::Handoff;
 pub(crate) use thread::ThreadKey;
 
 #[derive(Debug, Clone)]

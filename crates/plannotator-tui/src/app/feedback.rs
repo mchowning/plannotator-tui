@@ -54,7 +54,14 @@ pub(super) struct Feedback {
 }
 
 impl Feedback {
-    fn add(&mut self, path: Option<PathBuf>, name: &str, doc: &Document, store: Store, scope: SendScope) {
+    pub(super) fn add(
+        &mut self,
+        path: Option<PathBuf>,
+        name: &str,
+        doc: &Document,
+        store: Store,
+        scope: SendScope,
+    ) {
         if let Some(path) = &path {
             self.counts.insert(path.clone(), ReviewCounts::for_store(&store));
         }
@@ -68,17 +75,25 @@ impl Feedback {
                 range: p.range.clone(),
             })
             .collect();
-        if entries.is_empty() {
+        // A detached thread is still part of the conversation; a detached comment is not sent.
+        let threads = store.threads().unwrap_or_default();
+        let detached: Vec<&plannotator_tui_schema::Annotation> = threads
+            .iter()
+            .filter(|t| t.detached && (scope == SendScope::All || store.is_pending(t.annotation)))
+            .map(|t| t.annotation)
+            .collect();
+        if entries.is_empty() && detached.is_empty() {
             return;
         }
         if !self.text.is_empty() {
             self.text.push('\n');
         }
-        self.text.push_str(&export::feedback(&doc.source, name, &entries));
-        let ids = entries.iter().map(|e| e.annotation.id.clone()).collect();
-        self.count += entries.len();
-        self.annotations.extend(entries.iter().map(|entry| {
-            let a = entry.annotation;
+        self.text.push_str(&export::feedback_with_detached(&doc.source, name, &entries, &detached));
+        let sent: Vec<&plannotator_tui_schema::Annotation> =
+            entries.iter().map(|e| e.annotation).chain(detached.iter().copied()).collect();
+        let ids = sent.iter().map(|a| a.id.clone()).collect();
+        self.count += sent.len();
+        self.annotations.extend(sent.iter().map(|&a| {
             AnnotationRecord {
                 id: Some(a.id.clone()),
                 kind: Some(
@@ -228,7 +243,7 @@ impl App {
         }
     }
 
-    fn file_feedback(&self, scope: SendScope) -> Feedback {
+    pub(super) fn file_feedback(&self, scope: SendScope) -> Feedback {
         let path = match &self.open.source.provenance {
             Provenance::File { path } => Some(path.clone()),
             _ => None,

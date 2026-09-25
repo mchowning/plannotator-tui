@@ -22,6 +22,10 @@ pub(super) enum SendState {
 
 impl App {
     pub(super) fn send_feedback(&mut self) -> Result<()> {
+        if self.attached_session().is_some() {
+            self.ask_to_send_attached(false);
+            return Ok(());
+        }
         let scope = if self.is_file_review() { SendScope::Pending } else { SendScope::All };
         self.send_feedback_scope(scope)
     }
@@ -132,7 +136,7 @@ impl App {
 
     /// The shared submission history records only the selected feedback. Finishing a
     /// review has its own complete copies in the annotation record and does not rely on it.
-    fn archive_submission(&self, feedback: &mut Feedback) {
+    pub(super) fn archive_submission(&self, feedback: &mut Feedback) {
         use crate::archive::{self, Submission, Target};
         if !archive::enabled(|key| std::env::var(key).ok(), &self.data_dir) {
             return;
@@ -207,7 +211,9 @@ impl App {
     }
 
     pub(super) fn request_quit(&mut self) {
-        if self.has_unsent() {
+        if self.attached_session().is_some() {
+            self.ask_to_send_attached(true);
+        } else if self.has_unsent() {
             self.mode = Mode::ConfirmQuit;
         } else {
             self.quit = true;

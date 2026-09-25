@@ -9,20 +9,9 @@ use anyhow::{Result, bail};
 use plannotator_tui_schema::{
     AGENT, Annotation, Fork, Kind, Reply, Resolution, Thread, ThreadState, Turn, USER,
 };
-use serde::{Deserialize, Serialize};
 
 use super::{Record, Store, local_id, new_annotation, timestamp};
 use crate::doc::Document;
-
-/// A sent review waiting for delivery by the pi session that sent it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct Handoff {
-    pub(crate) id: String,
-    /// The pi session that sent it, and the only one that may deliver it.
-    pub(crate) owner: String,
-    pub(crate) body: String,
-    pub(crate) created_at: String,
-}
 
 /// A thread in the record, with whether its passage still resolves.
 #[derive(Debug)]
@@ -166,23 +155,6 @@ impl Store {
             let reply_id = reply.id.clone();
             annotation.replies.push(reply);
             Ok(reply_id)
-        })
-    }
-
-    /// The pending handoff, read under the lock.
-    pub(crate) fn handoff(&mut self) -> Result<Option<Handoff>> {
-        self.mutate(None, |record| Ok(record.handoff.clone()))
-    }
-
-    /// Clear the pending handoff once its owner has delivered it.
-    pub(crate) fn ack_handoff(&mut self, handoff_id: &str) -> Result<()> {
-        self.mutate(None, |record| match &record.handoff {
-            Some(handoff) if handoff.id == handoff_id => {
-                record.handoff = None;
-                Ok(())
-            }
-            Some(handoff) => bail!("the pending handoff is {}, not {handoff_id}", handoff.id),
-            None => bail!("no pending handoff"),
         })
     }
 }

@@ -4,7 +4,7 @@
 use std::collections::HashSet;
 
 use anyhow::{Context, Result};
-use plannotator_tui_schema::Annotation;
+use plannotator_tui_schema::{Annotation, Thread, ThreadState, Turn};
 use time::{Duration, OffsetDateTime, UtcOffset, format_description::well_known::Rfc3339};
 
 use super::{Delivered, Record, Store};
@@ -55,7 +55,7 @@ fn last_delivery<'a>(deliveries: &'a [Delivered], id: &str) -> Option<&'a Delive
 /// cannot be read is the other way round: once it has been in any delivery it counts as
 /// sent, because "pending forever" would resend it on every send and never let it be
 /// archived. The next edit rewrites the timestamp and makes it pending again.
-fn pending(deliveries: &[Delivered], annotation: &Annotation) -> bool {
+pub(super) fn pending(deliveries: &[Delivered], annotation: &Annotation) -> bool {
     let Some(delivery) = last_delivery(deliveries, &annotation.id) else { return true };
     match (parse_time(&annotation.updated_at), parse_time(&delivery.at)) {
         (Some(updated), Some(sent)) => updated > sent,
@@ -155,7 +155,11 @@ impl Store {
 }
 
 /// A delivery of `annotation_ids`, timed no earlier than the newest of their edits.
-fn delivery(annotations: &[Annotation], target: &str, annotation_ids: &[String]) -> Result<Delivered> {
+pub(super) fn delivery(
+    annotations: &[Annotation],
+    target: &str,
+    annotation_ids: &[String],
+) -> Result<Delivered> {
     let updated = annotations
         .iter()
         .filter(|a| annotation_ids.contains(&a.id))
@@ -169,8 +173,9 @@ fn delivery(annotations: &[Annotation], target: &str, annotation_ids: &[String])
     })
 }
 
-/// Move the active annotations named by `ids` into the archive.
-fn archive(record: &mut Record, ids: &[String]) -> Result<()> {
+/// Move the active annotations named by `ids` into the archive. An archived thread is a
+/// transcript: historical, with no fork to answer it and no turn running.
+pub(super) fn archive(record: &mut Record, ids: &[String]) -> Result<()> {
     if ids.is_empty() {
         return Ok(());
     }
@@ -182,7 +187,17 @@ fn archive(record: &mut Record, ids: &[String]) -> Result<()> {
     let (finished, active): (Vec<Annotation>, Vec<Annotation>) =
         std::mem::take(&mut record.annotations).into_iter().partition(|a| selected.contains(a.id.as_str()));
     record.annotations = active;
-    record.archived.extend(finished);
+    for mut annotation in finished {
+        if let Some(mut thread) = Thread::of(&annotation)? {
+            thread.state = ThreadState::Historical;
+            thread.fork = None;
+            if thread.turn == Turn::Running {
+                thread.turn = Turn::Interrupted;
+            }
+            thread.store_on(&mut annotation)?;
+        }
+        record.archived.push(annotation);
+    }
     Ok(())
 }
 

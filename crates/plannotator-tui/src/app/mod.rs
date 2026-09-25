@@ -2,6 +2,7 @@
 //! the data they share and the operations that change it.
 
 mod archive_view;
+mod attached_send;
 mod compose;
 mod draw;
 mod feedback;
