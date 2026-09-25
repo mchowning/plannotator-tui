@@ -84,7 +84,10 @@ dimmed. The keys also work without opening the menu.
 | reply review | `S` send and close |
 | document | `j`/`k` block; `c` comment on the block; `x` clear its annotations; `v` select with `hjkl` `w` `b` `0` `$`; `i` move the cursor with those keys first, then `v` to select from there |
 | toolbar | `a` looks good · `c` comment · `d` delete · `Esc` |
-| notes | `j`/`k`; `e` edit; `x` remove; click a bubble |
+| notes | `j`/`k`; `e` edit; `x` remove; click a bubble; `Enter` edits a comment or opens a thread |
+| comment input (attached) | `Enter` saves a comment · `Ctrl-R` saves it as a thread |
+| notes (attached) | `Ctrl-R` makes a comment a thread, or retries a failed or interrupted turn |
+| thread panel | type, `Enter` reply · `Ctrl-R` retry · `PgUp`/`PgDn` or the wheel scroll · `Esc` close |
 | file/folder review | `E` send new · `m` review menu (`R` resend all · `F` finish review · `U` undo · `H` archive) |
 | tree | `j`/`k`; `Enter` open; `.` show/hide dot-prefixed entries (`.agents/`, `.github/`); `E` sends new notes across all reviewed files, including collapsed folders |
 
@@ -159,6 +162,26 @@ integration was installed reports none. Without an id, `last` shows the newest t
 the folder, which is a guess when several sessions share one directory, and says so in the
 status line.
 
+## Threads
+
+When pi's `/plannotator-file-tui` opens a single file, it attaches the review to that pi
+session (`PLANNOTATOR_TUI_AGENT_SESSION`). A comment can then become a thread: `Ctrl-R` in the
+comment box, or on a comment in the notes. A copy of the pi session answers each thread in the
+background, several at once. Its box shows the latest message, `working…` while a turn runs,
+and a status line when one fails or is interrupted. `Enter` opens the thread in a panel beside
+the document, with the passage highlighted and a reply box. Replies land in the record, and the
+review picks up the answers on its own within a second.
+
+A thread whose passage was edited away moves to a `detached` group at the top of the notes,
+with the old quote struck through, and still takes replies.
+
+In an attached review, `q` and `E` ask `send this review to pi?`. `y` sends every comment and
+every thread transcript to that pi session as one message and archives the review, so the file
+reopens empty; archived threads are read-only transcripts. `n` closes and keeps everything for
+later. If pi exits before delivering a sent review, the next `/plannotator-file-tui` on that
+file from the same session delivers it first. Outside pi, and for folders and agent replies,
+`Ctrl-R` says `no agent session attached`.
+
 ## Where annotations live
 
 ```
@@ -189,6 +212,7 @@ plannotator-tui --export <file|folder>                          # all active not
 plannotator-tui --annotate <file> <quote> <text> [comment|looks_good|delete]
 plannotator-tui --snapshot <file|folder> [cols rows scroll] [quote]   # one frame as text
 plannotator-tui --bench <file>                                  # parse / layout timings
+plannotator-tui thread list|fork|turn|reply|handoff|handoff-ack <file> …   # the pi thread runner's interface; see --help
 ```
 
 ## Repository
