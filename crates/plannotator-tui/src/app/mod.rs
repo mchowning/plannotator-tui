@@ -8,6 +8,7 @@ mod draw;
 mod feedback;
 mod header;
 mod input;
+mod keys;
 mod menu;
 mod pick;
 mod poll;
@@ -67,6 +68,8 @@ enum Mode {
     ReviewMenu,
     /// The thread panel is open on this annotation id.
     Thread(String),
+    /// The key list is open over the review.
+    Keys,
 }
 
 /// Which pane keyboard input goes to.
@@ -99,6 +102,9 @@ struct Geometry {
     pick_rows: Vec<(Rect, usize)>,
     /// The thread panel, when open.
     panel: Option<Rect>,
+    /// The key list drawn last frame, and how far it can scroll.
+    keys: Option<Rect>,
+    keys_max_scroll: usize,
 }
 
 /// A finished selection waiting for an action.
@@ -205,6 +211,8 @@ pub(crate) struct App {
     record_poll: poll::RecordPoll,
     /// How many transcript rows the thread panel is scrolled up from its latest line.
     panel_back: usize,
+    /// First key list line drawn.
+    keys_scroll: usize,
     /// Copy selections to the terminal clipboard (off for headless runs).
     pub(crate) clipboard: bool,
     pub(crate) quit: bool,
@@ -274,6 +282,7 @@ impl App {
             agent_session: None,
             record_poll: poll::RecordPoll::default(),
             panel_back: 0,
+            keys_scroll: 0,
             clipboard: false,
             quit: false,
         })

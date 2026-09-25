@@ -95,6 +95,7 @@ impl App {
             Mode::Pick => self.draw_pick(frame),
             Mode::Archive => self.draw_archive(frame),
             Mode::ReviewMenu => self.draw_review_menu(frame),
+            Mode::Keys => self.draw_key_list(frame),
             Mode::Browse | Mode::ConfirmQuit | Mode::Thread(_) => {}
         }
     }
@@ -274,9 +275,16 @@ impl App {
     /// bubble being edited, else centered.
     /// The compose box title; the Shift+Enter hint appears only when the terminal
     /// actually distinguishes it, so the hint is never a lie.
+    /// `Ctrl-R` saves a new comment as a thread, so an attached new-comment box names it,
+    /// early, because the box cuts its title short.
     fn compose_title(&self, verb: &str) -> String {
         let newline = if self.shift_enter { "shift+enter new line" } else { "alt+enter new line" };
-        format!(" {verb} \u{b7} enter saves \u{b7} {newline} \u{b7} esc cancels ")
+        let thread = if self.mode == Mode::Compose && self.attached_session().is_some() {
+            " \u{b7} ctrl-r thread"
+        } else {
+            ""
+        };
+        format!(" {verb} \u{b7} enter saves{thread} \u{b7} {newline} \u{b7} esc cancels ")
     }
 
     fn draw_compose(&self, frame: &mut Frame, title: &str) {
@@ -371,20 +379,26 @@ impl App {
         }
         // `S` is bound only in a reply review, so only a reply review names it.
         let quit = if self.is_file_review() { "q quit " } else { "S send+quit · q quit " };
+        // The status must stay readable at any width, so the key help yields columns to it
+        // (and is clipped) rather than the other way round.
+        let status_width = self.status.as_ref().map_or(0, |s| s.width() + 1) as u16;
+        let available = area.width.saturating_sub(status_width.max(10));
+        let pointed = |help: String| super::keys::with_pointer(help, available);
         let help = match self.focus {
             _ if matches!(self.mode, Mode::Thread(_)) => {
                 "enter reply · ctrl-r retry · pgup/pgdn scroll · esc close ".to_owned()
             }
             _ if self.pending.is_some() => "a looks good · c comment · d delete · esc clear ".to_owned(),
-            Focus::Tree => "j/k · enter open · . hidden · E send · t hide · q quit ".to_owned(),
-            Focus::Rail => format!("j/k · e edit · x remove · tab · {quit}"),
-            Focus::Document if self.roam => format!("hjkl move · v select · c comment · esc blocks · {quit}"),
-            Focus::Document => format!("i move · v select · c comment · E send · tab · {quit}"),
+            Focus::Tree => pointed("j/k · enter open · . hidden · E send · t hide · q quit ".to_owned()),
+            Focus::Rail => {
+                pointed(format!("j/k · {}e edit · x remove · tab · {quit}", self.rail_thread_hint()))
+            }
+            Focus::Document if self.roam => {
+                pointed(format!("hjkl move · v select · c comment · esc blocks · {quit}"))
+            }
+            Focus::Document => pointed(format!("i move · v select · c comment · E send · tab · {quit}")),
         };
-        // The status must stay readable at any width, so the key help yields columns to it
-        // (and is clipped) rather than the other way round.
-        let status_width = self.status.as_ref().map_or(0, |s| s.width() + 1) as u16;
-        let help_width = (help.width() as u16).min(area.width.saturating_sub(status_width.max(10)));
+        let help_width = (help.width() as u16).min(available);
         let [left_area, right_area] =
             Layout::horizontal([Constraint::Min(10), Constraint::Length(help_width)]).areas(area);
         frame.render_widget(

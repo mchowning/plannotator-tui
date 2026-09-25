@@ -27,6 +27,10 @@ impl App {
                 Mode::ReviewMenu => self.menu_key(*key),
                 Mode::Compose | Mode::Edit(_) => self.text_key(*key),
                 Mode::Thread(_) => self.thread_panel_key(*key),
+                Mode::Keys => {
+                    self.keys_key(*key);
+                    Ok(())
+                }
             },
             // A paste lands in the comment box verbatim, newlines included; anywhere else
             // it is ignored rather than replayed as keystrokes.
@@ -45,6 +49,10 @@ impl App {
                 self.archive_mouse(*mouse);
                 Ok(())
             }
+            Event::Mouse(mouse) if self.mode == Mode::Keys => {
+                self.keys_mouse(*mouse);
+                Ok(())
+            }
             _ => Ok(()),
         }
     }
@@ -52,6 +60,10 @@ impl App {
     fn browse_key(&mut self, key: KeyEvent) -> Result<()> {
         // Global keys first.
         match (key.code, key.modifiers) {
+            (KeyCode::Char('?'), _) => {
+                self.open_key_list();
+                return Ok(());
+            }
             (KeyCode::Char('q'), _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
                 self.request_quit();
                 return Ok(());
@@ -371,7 +383,8 @@ impl App {
                     | Mode::Pick
                     | Mode::Archive
                     | Mode::ReviewMenu
-                    | Mode::Thread(_) => {
+                    | Mode::Thread(_)
+                    | Mode::Keys => {
                         if !body.is_empty()
                             && let Some(pending) = self.pending.take()
                         {
