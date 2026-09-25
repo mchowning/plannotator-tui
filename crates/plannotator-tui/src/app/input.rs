@@ -26,15 +26,20 @@ impl App {
                 }
                 Mode::ReviewMenu => self.menu_key(*key),
                 Mode::Compose | Mode::Edit(_) => self.text_key(*key),
+                Mode::Thread(_) => self.thread_panel_key(*key),
             },
             // A paste lands in the comment box verbatim, newlines included; anywhere else
             // it is ignored rather than replayed as keystrokes.
-            Event::Paste(text) if matches!(self.mode, Mode::Compose | Mode::Edit(_)) => {
+            Event::Paste(text) if matches!(self.mode, Mode::Compose | Mode::Edit(_) | Mode::Thread(_)) => {
                 self.compose.insert_text(text);
                 Ok(())
             }
             Event::Mouse(mouse) if self.mode == Mode::Browse => self.mouse(*mouse),
             Event::Mouse(mouse) if self.mode == Mode::Pick => self.pick_mouse(*mouse),
+            Event::Mouse(mouse) if matches!(self.mode, Mode::Thread(_)) => {
+                self.thread_panel_mouse(*mouse);
+                Ok(())
+            }
             Event::Mouse(mouse) if self.mode == Mode::ReviewMenu => self.menu_mouse(*mouse),
             Event::Mouse(mouse) if self.mode == Mode::Archive => {
                 self.archive_mouse(*mouse);
@@ -154,7 +159,14 @@ impl App {
             KeyCode::Char('k') | KeyCode::Up => self.rail_cursor = self.rail_cursor.saturating_sub(1),
             KeyCode::Home => self.rail_cursor = 0,
             KeyCode::End => self.rail_cursor = len.saturating_sub(1),
-            KeyCode::Enter | KeyCode::Char('e') => self.edit_selected_annotation(),
+            KeyCode::Enter => match self.rail().get(self.rail_cursor) {
+                Some(entry) if entry.thread.is_some() => {
+                    let id = entry.annotation.id.clone();
+                    self.open_thread(id);
+                }
+                _ => self.edit_selected_annotation(),
+            },
+            KeyCode::Char('e') => self.edit_selected_annotation(),
             KeyCode::Char('x') | KeyCode::Delete => self.remove_selected_annotation()?,
             KeyCode::Esc => self.focus = Focus::Document,
             _ => {}
@@ -354,7 +366,8 @@ impl App {
                     | Mode::ConfirmQuit
                     | Mode::Pick
                     | Mode::Archive
-                    | Mode::ReviewMenu => {
+                    | Mode::ReviewMenu
+                    | Mode::Thread(_) => {
                         if !body.is_empty()
                             && let Some(pending) = self.pending.take()
                         {

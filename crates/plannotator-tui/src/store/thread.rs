@@ -121,7 +121,6 @@ impl Store {
         })
     }
 
-    #[cfg_attr(not(test), expect(dead_code, reason = "the thread panel calls this once it lands"))]
     /// The person's reply in a live thread. Returns the reply id.
     pub(crate) fn add_user_reply(&mut self, id: &str, body: String) -> Result<String> {
         self.mutate(None, |record| {

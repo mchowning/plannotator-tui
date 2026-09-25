@@ -18,6 +18,7 @@ mod selection;
 mod send;
 #[cfg(test)]
 mod tests;
+mod thread_view;
 mod threads;
 
 use std::collections::HashMap;
@@ -62,6 +63,8 @@ enum Mode {
     Archive,
     /// The header's Review menu is open over a file or folder review.
     ReviewMenu,
+    /// The thread panel is open on this annotation id.
+    Thread(String),
 }
 
 /// Which pane keyboard input goes to.
@@ -92,6 +95,8 @@ struct Geometry {
     archive_rows: Vec<(Rect, usize)>,
     /// Picker rows drawn last frame, with their candidate index.
     pick_rows: Vec<(Rect, usize)>,
+    /// The thread panel, when open.
+    panel: Option<Rect>,
 }
 
 /// A finished selection waiting for an action.
@@ -193,6 +198,8 @@ pub(crate) struct App {
     /// Thread actions need one; see `attached_session`.
     agent_session: Option<String>,
     record_poll: poll::RecordPoll,
+    /// How many transcript rows the thread panel is scrolled up from its latest line.
+    panel_back: usize,
     /// Copy selections to the terminal clipboard (off for headless runs).
     pub(crate) clipboard: bool,
     pub(crate) quit: bool,
@@ -260,6 +267,7 @@ impl App {
             frame_max_ms: 0.0,
             agent_session: None,
             record_poll: poll::RecordPoll::default(),
+            panel_back: 0,
             clipboard: false,
             quit: false,
         })

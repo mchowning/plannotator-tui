@@ -6,7 +6,7 @@ use plannotator_tui_schema::Provenance;
 use super::{App, Mode};
 use crate::store::ThreadKey;
 
-const NOT_ATTACHED: &str = "no agent session attached";
+pub(super) const NOT_ATTACHED: &str = "no agent session attached";
 
 impl App {
     pub(crate) fn attach_agent_session(&mut self, session: String) {
@@ -46,12 +46,17 @@ impl App {
 
     /// Ctrl-R on the rail: make the selected comment a thread, or retry its failed turn.
     pub(super) fn thread_key_on_rail(&mut self) -> Result<()> {
+        let Some(id) = self.rail_selected_id() else { return Ok(()) };
+        self.retry_thread(&id)
+    }
+
+    /// Ctrl-R on annotation `id`, from the rail or the thread panel.
+    pub(super) fn retry_thread(&mut self, id: &str) -> Result<()> {
         if self.attached_session().is_none() {
             self.status = Some(NOT_ATTACHED.into());
             return Ok(());
         }
-        let Some(id) = self.rail_selected_id() else { return Ok(()) };
-        let status = match self.open.store.thread_key(&id)? {
+        let status = match self.open.store.thread_key(id)? {
             ThreadKey::Started => {
                 self.mark_unsent();
                 "thread started"

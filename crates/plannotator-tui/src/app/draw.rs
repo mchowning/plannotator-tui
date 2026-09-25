@@ -51,7 +51,10 @@ impl App {
 
         let show_tree = self.tree_shown(area.width) || (self.tree.is_some() && self.focus == Focus::Tree);
         let tree_width = if show_tree { TREE_WIDTH } else { 0 };
-        let rail_width = if area.width.saturating_sub(tree_width) >= RAIL_MIN_TOTAL_WIDTH {
+        let panel_open = matches!(self.mode, Mode::Thread(_));
+        let rail_width = if panel_open {
+            area.width * super::thread_view::PANEL_PERCENT / 100
+        } else if area.width.saturating_sub(tree_width) >= RAIL_MIN_TOTAL_WIDTH {
             (area.width * 3 / 10).clamp(RAIL_MIN_WIDTH, RAIL_WIDTH)
         } else {
             0
@@ -79,7 +82,9 @@ impl App {
             self.draw_tree(frame, tree);
         }
         self.draw_document(frame, gutter, doc);
-        if rail_width > 0 {
+        if panel_open {
+            self.draw_thread_panel(frame, rail);
+        } else if rail_width > 0 {
             self.draw_rail(frame, rail);
         }
         self.draw_footer(frame, footer);
@@ -90,7 +95,7 @@ impl App {
             Mode::Pick => self.draw_pick(frame),
             Mode::Archive => self.draw_archive(frame),
             Mode::ReviewMenu => self.draw_review_menu(frame),
-            Mode::Browse | Mode::ConfirmQuit => {}
+            Mode::Browse | Mode::ConfirmQuit | Mode::Thread(_) => {}
         }
     }
 
@@ -145,6 +150,11 @@ impl App {
 
     fn draw_document(&self, frame: &mut Frame, gutter: Rect, doc: Rect) {
         let placed = self.open.store.placed();
+        // The open thread's passage.
+        let passage = match &self.mode {
+            Mode::Thread(id) => placed.iter().find(|p| &p.annotation.id == id).map(|p| p.range.clone()),
+            _ => None,
+        };
         let text_selection_active = self.selection.is_some();
         let doc_focused = self.focus == Focus::Document;
         let buf = frame.buffer_mut();
@@ -181,6 +191,15 @@ impl App {
                     }
                 };
                 buf.set_style(Rect { x: doc.x + col as u16, y: screen_y, width: 1, height: 1 }, style);
+            }
+
+            if let Some(passage) = &passage {
+                for (col, cell) in row.cells.iter().enumerate().take(usize::from(doc.width)) {
+                    if cell.is_some_and(|offset| passage.contains(&offset)) {
+                        let rect = Rect { x: doc.x + col as u16, y: screen_y, width: 1, height: 1 };
+                        buf.set_style(rect, palette().selection);
+                    }
+                }
             }
 
             if let Some(cols) = self.selection.and_then(|s| s.columns_on(row_index, row.cells.len().max(1))) {
