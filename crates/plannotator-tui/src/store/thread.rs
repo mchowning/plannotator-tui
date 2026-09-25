@@ -33,7 +33,6 @@ pub(crate) struct ThreadEntry<'a> {
 }
 
 /// What `Ctrl-R` on an existing annotation did.
-#[cfg_attr(not(test), expect(dead_code, reason = "the review UI calls this once thread keys land"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ThreadKey {
     /// A regular comment became a thread.
@@ -83,7 +82,6 @@ impl Store {
         Ok(out)
     }
 
-    #[cfg_attr(not(test), expect(dead_code, reason = "the review UI calls this once thread keys land"))]
     /// Save a comment on `range` that is a thread from the start.
     pub(crate) fn add_thread(
         &mut self,
@@ -102,7 +100,6 @@ impl Store {
         Ok(id)
     }
 
-    #[cfg_attr(not(test), expect(dead_code, reason = "the review UI calls this once thread keys land"))]
     /// `Ctrl-R` on an annotation: turn a regular comment into a thread, or retry a thread
     /// whose last turn failed or was interrupted.
     pub(crate) fn thread_key(&mut self, id: &str) -> Result<ThreadKey> {
@@ -124,7 +121,7 @@ impl Store {
         })
     }
 
-    #[cfg_attr(not(test), expect(dead_code, reason = "the review UI calls this once thread keys land"))]
+    #[cfg_attr(not(test), expect(dead_code, reason = "the thread panel calls this once it lands"))]
     /// The person's reply in a live thread. Returns the reply id.
     pub(crate) fn add_user_reply(&mut self, id: &str, body: String) -> Result<String> {
         self.mutate(None, |record| {

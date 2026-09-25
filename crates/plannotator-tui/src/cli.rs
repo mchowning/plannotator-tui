@@ -74,11 +74,19 @@ pub(crate) fn delivery(interactive: bool) -> Box<dyn Delivery> {
 
 fn open_app(path: &PathBuf, width: usize, interactive: bool) -> Result<App> {
     let delivery = delivery(interactive);
-    if path.is_dir() {
-        App::open_folder(path, width, delivery)
+    let mut app = if path.is_dir() {
+        App::open_folder(path, width, delivery)?
     } else {
-        App::open(open_file(path)?, width, delivery)
+        App::open(open_file(path)?, width, delivery)?
+    };
+    // Set by the pi launch command: this review can hold threads that session answers.
+    if interactive
+        && let Ok(session) = std::env::var("PLANNOTATOR_TUI_AGENT_SESSION")
+        && !session.is_empty()
+    {
+        app.attach_agent_session(session);
     }
+    Ok(app)
 }
 
 fn parse_kind(s: Option<&str>) -> Kind {

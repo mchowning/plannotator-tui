@@ -28,9 +28,8 @@ mod lock;
 mod review;
 mod thread;
 use review::timestamp;
-#[expect(unused_imports, reason = "the review UI uses this once thread keys land")]
-pub(crate) use thread::ThreadKey;
 pub(crate) use thread::Handoff;
+pub(crate) use thread::ThreadKey;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Store {

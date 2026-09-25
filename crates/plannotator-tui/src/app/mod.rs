@@ -16,6 +16,7 @@ mod selection;
 mod send;
 #[cfg(test)]
 mod tests;
+mod threads;
 
 use std::collections::HashMap;
 use std::ops::Range;
@@ -186,6 +187,9 @@ pub(crate) struct App {
     status: Option<String>,
     frame_ms: f64,
     frame_max_ms: f64,
+    /// The pi session that launched this review, from `PLANNOTATOR_TUI_AGENT_SESSION`.
+    /// Thread actions need one; see `attached_session`.
+    agent_session: Option<String>,
     /// Copy selections to the terminal clipboard (off for headless runs).
     pub(crate) clipboard: bool,
     pub(crate) quit: bool,
@@ -251,6 +255,7 @@ impl App {
             status: None,
             frame_ms: 0.0,
             frame_max_ms: 0.0,
+            agent_session: None,
             clipboard: false,
             quit: false,
         })

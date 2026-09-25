@@ -84,6 +84,9 @@ impl App {
                 self.toggle_tree(self.geometry.doc.width + self.geometry.tree.width + GUTTER);
                 return Ok(());
             }
+            (KeyCode::Char('r'), KeyModifiers::CONTROL) if self.focus == Focus::Rail => {
+                return self.thread_key_on_rail();
+            }
             (KeyCode::Char('r'), _) => return self.reload(),
             (KeyCode::Char('p'), _) => {
                 self.reopen_picker();
@@ -331,6 +334,7 @@ impl App {
     fn text_key(&mut self, key: KeyEvent) -> Result<()> {
         match self.compose.handle_key(key) {
             ComposeAction::Cancel => self.mode = Mode::Browse,
+            ComposeAction::SaveThread if self.mode == Mode::Compose => self.save_compose_as_thread()?,
             ComposeAction::Save => {
                 let body = self.compose.value().trim().to_owned();
                 match std::mem::replace(&mut self.mode, Mode::Browse) {
@@ -358,7 +362,7 @@ impl App {
                     }
                 }
             }
-            ComposeAction::Edited => {}
+            ComposeAction::Edited | ComposeAction::SaveThread => {}
         }
         Ok(())
     }
