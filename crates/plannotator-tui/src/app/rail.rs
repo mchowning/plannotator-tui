@@ -24,6 +24,9 @@ pub(super) struct RailEntry<'a> {
     pub(super) thread: Option<Thread>,
 }
 
+/// Rows of a thread's latest message shown in its box; the panel has the rest.
+const PREVIEW_ROWS: usize = 4;
+
 /// The line under a thread's messages while a turn runs or after one ended badly. Never a
 /// message, never sent.
 pub(super) fn turn_status(turn: &Turn) -> Option<(String, Style)> {
@@ -91,7 +94,14 @@ impl App {
                 Author::User => "you",
                 Author::Agent => "agent",
             };
-            lines.extend(wrapped(&format!("{who}: {}", latest.body), Style::new()));
+            let text = format!("{who}: {}", latest.body);
+            let mut rows: Vec<Line<'static>> =
+                text.split('\n').flat_map(|line| wrapped(line, Style::new())).collect();
+            if rows.len() > PREVIEW_ROWS {
+                rows.truncate(PREVIEW_ROWS);
+                rows.push(Line::from(Span::raw("…").dim()));
+            }
+            lines.extend(rows);
         }
         if let Some((text, style)) = turn_status(&thread.turn) {
             lines.extend(wrapped(&text, style));
