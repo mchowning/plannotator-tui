@@ -28,13 +28,14 @@ pub(crate) const USAGE: &str = "usage:
   plannotator-tui --export <file.md>
   plannotator-tui --bench <file.md>
   plannotator-tui --blocks <file.md>
-  plannotator-tui --annotate <file.md> <quote> <text> [comment|looks_good|delete]
+  plannotator-tui --annotate <file.md> <quote> <text> [comment|looks_good|delete] [--occurrence N]
   plannotator-tui --annotate-block <file.md> <block> <text>
   plannotator-tui --snapshot <file.md> [cols rows scroll] [select-quote] [menu]
   plannotator-tui config
   plannotator-tui --version
   plannotator-tui herdr open [file.md | folder] [--placement overlay|split|popup] [--deliver-to <pane>]
   plannotator-tui herdr last [--placement P] [--deliver-to <pane>] [--newest]
+  plannotator-tui herdr terminal [--lines N] [--placement P] [--deliver-to <pane>] [--print]
   plannotator-tui herdr pane
   plannotator-tui last [--host claude|codex|pi|omp|copilot|droid|hermes|opencode] [--pid N] [--session <transcript>]
                        [--session-id <id>] [--stdin] [--print] [--pick N] [--newest]
@@ -97,6 +98,29 @@ fn parse_kind(s: Option<&str>) -> Kind {
     }
 }
 
+/// What follows `--annotate <file> <quote> <text>`: an optional kind and `--occurrence N`
+/// (1-based; the first occurrence when absent), in either order.
+fn annotate_options(rest: &[String]) -> Result<(Kind, usize)> {
+    let mut kind = None;
+    let mut occurrence = 1;
+    let mut items = rest.iter().map(String::as_str);
+    while let Some(item) = items.next() {
+        match item {
+            "--occurrence" => {
+                occurrence = items
+                    .next()
+                    .and_then(|n| n.parse::<usize>().ok())
+                    .filter(|n| *n >= 1)
+                    .context("--occurrence takes a number from 1")?;
+            }
+            flag if flag.starts_with("--") => anyhow::bail!("unknown flag {flag}\n{USAGE}"),
+            other if kind.is_none() => kind = Some(parse_kind(Some(other))),
+            other => anyhow::bail!("unexpected argument {other:?}\n{USAGE}"),
+        }
+    }
+    Ok((kind.unwrap_or(Kind::Comment), occurrence))
+}
+
 pub(crate) fn run(args: &[String]) -> Result<()> {
     let arg = |i: usize| args.get(i).map(String::as_str);
     let path = |i: usize| arg(i).map(|p| crate::workspace_paths::absolute(Path::new(p))).context(USAGE);
@@ -119,7 +143,8 @@ pub(crate) fn run(args: &[String]) -> Result<()> {
             let mut app = open_app(&path(1)?, 100, false)?;
             let quote = arg(2).context(USAGE)?;
             let body = arg(3).context(USAGE)?.to_owned();
-            app.add_quote_annotation(quote, parse_kind(arg(4)), body)
+            let (kind, occurrence) = annotate_options(args.get(4..).unwrap_or_default())?;
+            app.add_quote_annotation_at(quote, occurrence, kind, body)
         }
         Some("--annotate-block") => {
             let mut app = open_app(&path(1)?, 100, false)?;
@@ -174,6 +199,9 @@ fn herdr_command(args: &[String]) -> Result<()> {
     if sub == Some("pane") {
         return herdr_pane();
     }
+    if sub == Some("terminal") {
+        return herdr_terminal(args.get(1..).unwrap_or_default());
+    }
     if !matches!(sub, Some("open" | "last")) {
         anyhow::bail!(USAGE);
     }
@@ -216,10 +244,55 @@ fn herdr_command(args: &[String]) -> Result<()> {
     run(&env, &launch)
 }
 
+/// `plannotator-tui herdr terminal [--lines N] [--placement P] [--deliver-to PANE] [--print]`:
+/// review the focused pane's recent output. The read happens here first so a pane with
+/// nothing to show fails before a review pane opens; `--print` stops after it.
+fn herdr_terminal(args: &[String]) -> Result<()> {
+    use crate::herdr::launch::{OpenArgs, TerminalRead, plan_terminal, run};
+    use crate::herdr::terminal;
+    let mut open = OpenArgs::default();
+    let mut lines = terminal::DEFAULT_LINES;
+    let mut print = false;
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        match arg.as_str() {
+            "--lines" => {
+                lines = rest
+                    .next()
+                    .and_then(|n| n.parse::<u32>().ok())
+                    .filter(|n| *n >= 1)
+                    .context("--lines takes a number from 1")?;
+            }
+            "--placement" => {
+                let value = rest.next().context("--placement needs a value")?;
+                open.placement = Some(value.parse()?);
+            }
+            "--deliver-to" => {
+                open.deliver_to = Some(rest.next().context("--deliver-to needs a value")?.clone());
+            }
+            "--print" => print = true,
+            other => anyhow::bail!("unexpected argument {other:?}\n{USAGE}"),
+        }
+    }
+    let env = HerdrEnv::from_env();
+    let pane = env.reviewed_pane().context("no focused pane to read")?;
+    let text = terminal::read(&env, &pane, lines)?;
+    if print {
+        print!("{}", terminal::document(&text));
+        return Ok(());
+    }
+    let config = Config::load()?;
+    let cwd = std::env::current_dir().context("current directory")?;
+    let launch = plan_terminal(&env, &config, open, &cwd, TerminalRead { pane, lines })?;
+    run(&env, &launch)
+}
+
 /// The pane entrypoint: Herdr runs this in the opened pane; the environment says what to show.
 fn herdr_pane() -> Result<()> {
     let env = HerdrEnv::from_env();
-    let result = if env.has_message_source() {
+    let result = if let Some(pane) = env.terminal_pane.clone() {
+        crate::herdr::terminal::run(&env, &pane)
+    } else if env.has_message_source() {
         crate::last::run(&crate::last::LastOptions {
             host: env.host.clone(),
             pid: env.message_pid,

@@ -40,6 +40,8 @@ impl ReviewCounts {
 #[derive(Debug)]
 pub(super) struct FeedbackPart {
     pub(super) path: Option<PathBuf>,
+    /// The reply these notes belong to, in a reply review; `None` for files.
+    pub(super) reply: Option<usize>,
     pub(super) store: Store,
     pub(super) ids: Vec<String>,
 }
@@ -51,12 +53,15 @@ pub(super) struct Feedback {
     pub(super) parts: Vec<FeedbackPart>,
     pub(super) annotations: Vec<AnnotationRecord>,
     pub(super) counts: HashMap<PathBuf, ReviewCounts>,
+    /// Set for a terminal review: no line labels, and quotes rejoin these breaks.
+    pub(super) terminal_breaks: Option<Vec<usize>>,
 }
 
 impl Feedback {
     pub(super) fn add(
         &mut self,
         path: Option<PathBuf>,
+        reply: Option<usize>,
         name: &str,
         doc: &Document,
         store: Store,
@@ -71,8 +76,12 @@ impl Feedback {
             .filter(|p| scope == SendScope::All || store.is_pending(p.annotation))
             .map(|p| export::Entry {
                 annotation: p.annotation,
-                lines: export::line_span(&doc.source, p.range),
-                range: p.range.clone(),
+                lines: self.terminal_breaks.is_none().then(|| export::line_span(&doc.source, p.range)),
+                quote: export::quote(
+                    &doc.source,
+                    p.range,
+                    self.terminal_breaks.as_deref().unwrap_or_default(),
+                ),
             })
             .collect();
         // A detached thread is still part of the conversation; a detached comment is not sent.
@@ -88,7 +97,7 @@ impl Feedback {
         if !self.text.is_empty() {
             self.text.push('\n');
         }
-        self.text.push_str(&export::feedback_with_detached(&doc.source, name, &entries, &detached));
+        self.text.push_str(&export::feedback_with_detached(name, &entries, &detached));
         let sent: Vec<&plannotator_tui_schema::Annotation> =
             entries.iter().map(|e| e.annotation).chain(detached.iter().copied()).collect();
         let ids = sent.iter().map(|a| a.id.clone()).collect();
@@ -108,7 +117,7 @@ impl Feedback {
                 original_text: (!a.anchor.original_text.is_empty()).then(|| a.anchor.original_text.clone()),
             }
         }));
-        self.parts.push(FeedbackPart { path, store, ids });
+        self.parts.push(FeedbackPart { path, reply, store, ids });
     }
 
     fn exported_text(self) -> String {
@@ -248,13 +257,18 @@ impl App {
             Provenance::File { path } => Some(path.clone()),
             _ => None,
         };
-        let mut feedback = Feedback::default();
-        feedback.add(path, &self.open.source.name, &self.open.doc, self.open.store.clone(), scope);
+        let mut feedback = Feedback { terminal_breaks: self.terminal_breaks.clone(), ..Feedback::default() };
+        feedback.add(path, None, &self.open.source.name, &self.open.doc, self.open.store.clone(), scope);
         feedback
     }
 
     pub(super) fn prepare_feedback(&self, scope: SendScope) -> Result<Feedback> {
-        let Some(tree) = &self.tree else { return Ok(self.file_feedback(scope)) };
+        let Some(tree) = &self.tree else {
+            if !self.pick_cache.is_empty() {
+                return Ok(self.reply_feedback(scope));
+            }
+            return Ok(self.file_feedback(scope));
+        };
         let mut feedback = Feedback::default();
         for path in self.review_files() {
             if !path.is_file() {
@@ -264,10 +278,10 @@ impl App {
             }
             let name = path.strip_prefix(tree.root()).unwrap_or(&path).display().to_string();
             if self.is_open(&path) {
-                feedback.add(Some(path), &name, &self.open.doc, self.open.store.clone(), scope);
+                feedback.add(Some(path), None, &name, &self.open.doc, self.open.store.clone(), scope);
             } else {
                 let (doc, store) = self.load_review_file(&path)?;
-                feedback.add(Some(path), &name, &doc, store, scope);
+                feedback.add(Some(path), None, &name, &doc, store, scope);
             }
         }
         // Folder feedback has always ended each file's block with one extra newline, so

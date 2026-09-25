@@ -35,7 +35,7 @@ impl App {
         let mut rendered = Feedback::default();
         let Open { doc, store, .. } = &mut self.open;
         let sent = store.hand_off(doc, &owner, "pi", |view| {
-            rendered.add(Some(path.clone()), &name, doc, view.clone(), SendScope::Pending);
+            rendered.add(Some(path.clone()), None, &name, doc, view.clone(), SendScope::Pending);
             let ids = rendered.parts.iter().flat_map(|p| p.ids.clone()).collect();
             (rendered.text.clone(), ids)
         });
