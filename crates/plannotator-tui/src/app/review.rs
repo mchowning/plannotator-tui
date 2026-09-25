@@ -95,9 +95,8 @@ impl App {
     }
 
     fn after_review_change(&mut self) {
-        let remaining = self.open.store.placed().len();
-        self.rail_cursor = self.rail_cursor.min(remaining.saturating_sub(1));
-        if remaining == 0 && self.focus == Focus::Rail {
+        self.clamp_rail_cursor();
+        if self.rail().is_empty() && self.focus == Focus::Rail {
             self.focus = Focus::Document;
         }
         self.clear_selection();

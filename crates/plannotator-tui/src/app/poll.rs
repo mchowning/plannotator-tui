@@ -31,7 +31,7 @@ impl App {
         match self.open.store.refresh(&self.open.doc) {
             Ok(false) => false,
             Ok(true) => {
-                self.rail_cursor = self.rail_cursor.min(self.open.store.placed().len().saturating_sub(1));
+                self.clamp_rail_cursor();
                 self.refresh_review_counts();
                 self.derive_send_state();
                 self.sync_tree_counts();

@@ -50,9 +50,7 @@ impl App {
             self.status = Some(NOT_ATTACHED.into());
             return Ok(());
         }
-        let Some(id) = self.open.store.placed().get(self.rail_cursor).map(|p| p.annotation.id.clone()) else {
-            return Ok(());
-        };
+        let Some(id) = self.rail_selected_id() else { return Ok(()) };
         let status = match self.open.store.thread_key(&id)? {
             ThreadKey::Started => {
                 self.mark_unsent();

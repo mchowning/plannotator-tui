@@ -120,7 +120,7 @@ impl App {
 
     fn cycle_focus(&mut self) {
         let has_tree = self.tree.is_some();
-        let has_rail = !self.open.store.placed().is_empty();
+        let has_rail = !self.rail().is_empty();
         self.focus = match self.focus {
             Focus::Document if has_rail => Focus::Rail,
             Focus::Document | Focus::Rail if has_tree => Focus::Tree,
@@ -146,19 +146,22 @@ impl App {
     }
 
     fn rail_key(&mut self, key: KeyEvent) -> Result<()> {
-        let len = self.open.store.placed().len();
+        let len = self.rail().len();
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
                 self.rail_cursor = (self.rail_cursor + 1).min(len.saturating_sub(1));
             }
             KeyCode::Char('k') | KeyCode::Up => self.rail_cursor = self.rail_cursor.saturating_sub(1),
+            KeyCode::Home => self.rail_cursor = 0,
+            KeyCode::End => self.rail_cursor = len.saturating_sub(1),
             KeyCode::Enter | KeyCode::Char('e') => self.edit_selected_annotation(),
             KeyCode::Char('x') | KeyCode::Delete => self.remove_selected_annotation()?,
             KeyCode::Esc => self.focus = Focus::Document,
             _ => {}
         }
-        if let Some(target) = self.open.store.placed().get(self.rail_cursor)
-            && let Some(block) = self.open.doc.block_containing(target.range.start)
+        let start = self.rail().get(self.rail_cursor).and_then(|e| e.range.map(|r| r.start));
+        if let Some(start) = start
+            && let Some(block) = self.open.doc.block_containing(start)
         {
             self.selected = block;
             self.ensure_selected_visible();
@@ -489,7 +492,7 @@ impl App {
                 column >= rect.x && column < rect.right() && row >= rect.y && row < rect.bottom()
             })
             .map(|(_, id)| id.clone())?;
-        self.open.store.placed().iter().position(|p| p.annotation.id == id)
+        self.rail().iter().position(|e| e.annotation.id == id)
     }
 
     /// Screen cell -> document (row, column). With `clamp`, positions outside the

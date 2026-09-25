@@ -10,6 +10,7 @@ mod input;
 mod menu;
 mod pick;
 mod poll;
+mod rail;
 mod review;
 #[cfg(test)]
 mod review_test_support;
@@ -415,19 +416,21 @@ impl App {
 
     /// Begin editing the body of the annotation under the rail cursor.
     fn edit_selected_annotation(&mut self) {
-        let placed = self.open.store.placed();
-        let Some(target) = placed.get(self.rail_cursor) else { return };
-        self.compose = Compose::with_text(&target.annotation.body);
-        self.mode = Mode::Edit(target.annotation.id.clone());
+        let Some((id, body)) =
+            self.rail().get(self.rail_cursor).map(|e| (e.annotation.id.clone(), e.annotation.body.clone()))
+        else {
+            return;
+        };
+        self.compose = Compose::with_text(&body);
+        self.mode = Mode::Edit(id);
     }
 
     fn remove_selected_annotation(&mut self) -> Result<()> {
-        let id = self.open.store.placed().get(self.rail_cursor).map(|p| p.annotation.id.clone());
-        let Some(id) = id else { return Ok(()) };
+        let Some(id) = self.rail_selected_id() else { return Ok(()) };
         if self.open.store.remove(&id)? {
             self.mark_unsent();
             self.status = Some("annotation removed".into());
-            self.rail_cursor = self.rail_cursor.min(self.open.store.placed().len().saturating_sub(1));
+            self.clamp_rail_cursor();
             self.sync_tree_counts();
         }
         Ok(())

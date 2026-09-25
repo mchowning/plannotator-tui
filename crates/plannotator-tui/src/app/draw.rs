@@ -10,9 +10,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
-use super::{App, Focus, GUTTER, Geometry, Mode, TOOLBAR, glyph, label};
+use super::{App, Focus, GUTTER, Geometry, Mode, TOOLBAR};
 use crate::theme::palette;
-use crate::wrap::wrap_line;
 
 const RAIL_WIDTH: u16 = 36;
 const RAIL_MIN_WIDTH: u16 = 28;
@@ -23,7 +22,7 @@ const TREE_WIDTH: u16 = 28;
 pub(super) const TREE_MIN_TOTAL_WIDTH: u16 = 120;
 const COMPOSE_WIDTH: u16 = 48;
 
-fn accent(kind: Kind) -> Color {
+pub(super) fn accent(kind: Kind) -> Color {
     match kind {
         Kind::Comment => Color::Yellow,
         Kind::LooksGood => Color::Green,
@@ -306,69 +305,6 @@ impl App {
         Some(Rect { x, y: rect.y, width: width.min(area.width), height })
     }
 
-    fn draw_rail(&mut self, frame: &mut Frame, rail: Rect) {
-        let view_end = self.scroll + usize::from(rail.height);
-        let rail_focused = self.focus == Focus::Rail;
-        let mut next_y = rail.y;
-        let placed = self.open.store.placed();
-        let mut bubbles = Vec::new();
-        for (index, placed) in placed.iter().enumerate() {
-            let Some(block) = self.open.doc.block_containing(placed.range.start) else { continue };
-            let Some(rendered) = self.open.layout.blocks.get(block) else { continue };
-            let anchor_row =
-                self.open.layout.first_row_in_range(block, placed.range).unwrap_or(rendered.first_row);
-            if anchor_row + 1 < self.scroll.saturating_sub(2)
-                || anchor_row >= view_end
-                || next_y >= rail.bottom()
-            {
-                continue;
-            }
-            let anchored_y = rail.y + anchor_row.saturating_sub(self.scroll) as u16;
-            let y = anchored_y.max(next_y);
-            let kind = placed.kind();
-            let body = if placed.annotation.body.is_empty() {
-                label(kind).to_owned()
-            } else {
-                placed.annotation.body.clone()
-            };
-            let inner_width = usize::from(rail.width.saturating_sub(4));
-            let lines: Vec<Line<'static>> =
-                wrap_line(&Line::from(body.as_str()), &[], inner_width).into_iter().map(|r| r.line).collect();
-            let height = (lines.len() as u16 + 2).min(rail.bottom().saturating_sub(y));
-            if height < 3 {
-                break;
-            }
-            let highlighted = if rail_focused { index == self.rail_cursor } else { block == self.selected };
-            let border =
-                if highlighted { Style::new().fg(accent(kind)) } else { Style::new().fg(Color::DarkGray) };
-            let border = if rail_focused && index == self.rail_cursor { border.bold() } else { border };
-            let sent = if self.is_file_review() && !self.open.store.is_pending(placed.annotation) {
-                " · sent"
-            } else {
-                ""
-            };
-            let title = Span::styled(
-                format!(" {} {}{sent} ", glyph(kind), short_id(&placed.annotation.id)),
-                Style::new().fg(accent(kind)),
-            );
-            let bubble = Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(border)
-                .title(title);
-            let rect = Rect { x: rail.x, y, width: rail.width, height };
-            let inner = bubble.inner(rect);
-            frame.render_widget(bubble, rect);
-            let body_style =
-                if placed.annotation.body.is_empty() { Style::new().dim().italic() } else { Style::new() };
-            let text_area = Rect { x: inner.x + 1, width: inner.width.saturating_sub(1), ..inner };
-            frame.render_widget(Paragraph::new(lines).style(body_style), text_area);
-            bubbles.push((rect, placed.annotation.id.clone()));
-            next_y = y + height;
-        }
-        self.geometry.bubbles = bubbles;
-    }
-
     fn draw_footer(&mut self, frame: &mut Frame, mut area: Rect) {
         if self.mode == Mode::ConfirmQuit {
             // The question owns the footer: the browse help would name keys that are not
@@ -434,7 +370,7 @@ impl App {
 }
 
 /// The tail of an id, enough to tell bubbles apart: `anno_…F0123` → `F0123`.
-fn short_id(id: &str) -> String {
+pub(super) fn short_id(id: &str) -> String {
     let tail: Vec<char> = id.chars().rev().take(5).collect();
     tail.into_iter().rev().collect()
 }
