@@ -9,6 +9,7 @@ mod header;
 mod input;
 mod menu;
 mod pick;
+mod poll;
 mod review;
 #[cfg(test)]
 mod review_test_support;
@@ -190,6 +191,7 @@ pub(crate) struct App {
     /// The pi session that launched this review, from `PLANNOTATOR_TUI_AGENT_SESSION`.
     /// Thread actions need one; see `attached_session`.
     agent_session: Option<String>,
+    record_poll: poll::RecordPoll,
     /// Copy selections to the terminal clipboard (off for headless runs).
     pub(crate) clipboard: bool,
     pub(crate) quit: bool,
@@ -256,6 +258,7 @@ impl App {
             frame_ms: 0.0,
             frame_max_ms: 0.0,
             agent_session: None,
+            record_poll: poll::RecordPoll::default(),
             clipboard: false,
             quit: false,
         })

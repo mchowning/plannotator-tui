@@ -305,6 +305,25 @@ impl Store {
         })
     }
 
+    /// Where the record lives; `None` for transient documents.
+    pub(crate) fn record_path(&self) -> Option<&Path> {
+        self.path.as_deref()
+    }
+
+    /// Adopt what other writers changed on disk, resolved against `doc`. True when
+    /// anything differed. The rename in `write_atomic` means a read never sees half a write.
+    pub(crate) fn refresh(&mut self, doc: &Document) -> Result<bool> {
+        let Some(path) = self.path.clone() else { return Ok(false) };
+        let record = read_record(&path)?.unwrap_or_default();
+        let same = record.annotations == self.annotations
+            && record.deliveries == self.deliveries
+            && record.archived == self.archived;
+        if !same {
+            self.adopt(record, Some(doc));
+        }
+        Ok(!same)
+    }
+
     pub(crate) fn resolve_all(&mut self, doc: &Document) {
         self.resolved = self
             .annotations

@@ -331,6 +331,8 @@ fn event_loop(terminal: &mut ratatui::DefaultTerminal, mut app: App) -> Result<(
                 app.handle_event(&event::read()?)?;
             }
         }
+        // Thread replies and other writers' changes arrive through the record.
+        dirty |= app.poll_record(Instant::now());
     }
     Ok(())
 }
