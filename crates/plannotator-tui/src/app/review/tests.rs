@@ -112,8 +112,9 @@ fn folder_finish_reports_partial_failure_and_undo_covers_only_committed_archives
     store.add(&doc, 6..9, "new".into(), Kind::Comment, "C pending".into()).expect("C");
     app.refresh_review_counts();
     let location = Location::for_file(&app.data_dir, &app.project, &other);
-    let blocked_tmp = location.record.with_extension("json.tmp");
-    std::fs::create_dir(&blocked_tmp).expect("block B archive");
+    let blocked_lock = location.record.with_file_name("annotations.json.lock");
+    let _ = std::fs::remove_file(&blocked_lock);
+    std::fs::create_dir(&blocked_lock).expect("block B archive");
     press(&mut app, 'F');
     let status = app.status.as_deref().expect("status");
     assert!(
@@ -128,7 +129,7 @@ fn folder_finish_reports_partial_failure_and_undo_covers_only_committed_archives
     press(&mut app, 'U');
     assert_eq!(app.open.store.len(), 1);
     assert_eq!(app.send_count(), 1);
-    std::fs::remove_dir(&blocked_tmp).expect("unblock");
+    std::fs::remove_dir(&blocked_lock).expect("unblock");
     press(&mut app, 'F');
     assert_eq!(app.review_counts().archived, 2);
     assert_eq!(app.send_count(), 1);
@@ -146,14 +147,15 @@ fn a_failed_undo_stays_available_for_retry_without_losing_the_archive() {
     press(&mut app, 'E');
     press(&mut app, 'F');
     let location = Location::for_file(&app.data_dir, &app.project, &root.join("docs/a.md"));
-    let blocked_tmp = location.record.with_extension("json.tmp");
-    std::fs::create_dir(&blocked_tmp).expect("block restore");
+    let blocked_lock = location.record.with_file_name("annotations.json.lock");
+    let _ = std::fs::remove_file(&blocked_lock);
+    std::fs::create_dir(&blocked_lock).expect("block restore");
     press(&mut app, 'U');
     assert!(!app.undo_archive.is_empty());
     assert_eq!(app.open.store.len(), 0);
     assert_eq!(app.open.store.archived().len(), 1);
     assert!(app.status.as_deref().expect("status").contains("could not restore"));
-    std::fs::remove_dir(&blocked_tmp).expect("unblock");
+    std::fs::remove_dir(&blocked_lock).expect("unblock");
     press(&mut app, 'U');
     assert!(app.undo_archive.is_empty());
     assert_eq!(app.open.store.len(), 1);

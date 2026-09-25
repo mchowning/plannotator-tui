@@ -14,6 +14,7 @@ mod layout;
 mod srcmap;
 mod store;
 mod theme;
+mod thread_cli;
 mod tree;
 mod workspace_paths;
 mod wrap;

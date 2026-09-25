@@ -8,7 +8,12 @@
 //!
 //! A phase-2 sidecar (`<file>.annotations.json` next to the document) is imported once and
 //! left alone; nothing is written next to the document any more.
+//!
+//! The review UI and the `thread` CLI both write the record, so every change is a locked
+//! read-modify-write (`mutate`): take the lock, re-read the record, apply the change by
+//! annotation id, write, and only then adopt the written record in memory.
 
+use std::collections::HashMap;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -19,8 +24,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::doc::Document;
 
+mod lock;
 mod review;
+mod thread;
 use review::timestamp;
+#[expect(unused_imports, reason = "the review UI uses this once thread keys land")]
+pub(crate) use thread::ThreadKey;
+pub(crate) use thread::Handoff;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Store {
@@ -35,7 +45,7 @@ pub(crate) struct Store {
     archived: Vec<Annotation>,
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 struct Record {
     /// The absolute document path this record belongs to. Written since 0.5.0 so folder
     /// sends can enumerate annotated files without walking the tree; absent in older
@@ -50,6 +60,10 @@ struct Record {
     /// Additive: consumers of the existing annotations array can ignore this field.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     archived: Vec<Annotation>,
+    /// A sent review waiting for the pi session that sent it to deliver it. Only ever read
+    /// and written under the lock; memory never holds it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    handoff: Option<Handoff>,
 }
 
 /// One send of the feedback: when, where, and which annotations it covered.
@@ -134,10 +148,19 @@ impl Store {
         };
         store.resolve_all(doc);
         if imported && !store.annotations.is_empty() {
-            store.save()?; // the import is now the record; the sidecar is left alone
+            // The import is now the record, unless a writer created one meanwhile; the
+            // sidecar is left alone.
+            let import = store.record();
+            store.mutate(Some(doc), |record| {
+                if record.annotations.is_empty() && record.archived.is_empty() {
+                    *record = import;
+                }
+                Ok(())
+            })?;
         } else if needs_path && !store.annotations.is_empty() && store.document.is_some() {
-            // A pre-0.5.0 record: write the document path in so folder sends can find it.
-            store.save()?;
+            // A pre-0.5.0 record: `mutate` writes the document path in so folder sends can
+            // find it.
+            store.mutate(Some(doc), |_| Ok(()))?;
         }
         Ok(store)
     }
@@ -187,22 +210,60 @@ impl Store {
             .map_or(0, |r| r.annotations.len())
     }
 
-    fn save(&self) -> Result<()> {
-        let Some(path) = &self.path else { return Ok(()) };
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
-        }
-        let record = Record {
+    /// This store's view as a record, for a transient store's in-memory changes and imports.
+    fn record(&self) -> Record {
+        Record {
             path: self.document.clone(),
             annotations: self.annotations.clone(),
             deliveries: self.deliveries.clone(),
             archived: self.archived.clone(),
+            handoff: None,
+        }
+    }
+
+    /// Apply `change` to the newest record under the record's lock, write it if it changed,
+    /// then adopt it. Nothing in memory changes unless the write succeeded. `doc` resolves the
+    /// result; without it, annotations keep the resolution they had, and any another writer
+    /// added stay unplaced until the next load against the document.
+    fn mutate<T>(
+        &mut self,
+        doc: Option<&Document>,
+        change: impl FnOnce(&mut Record) -> Result<T>,
+    ) -> Result<T> {
+        let Some(path) = self.path.clone() else {
+            let mut record = self.record();
+            let out = change(&mut record)?;
+            self.adopt(record, doc);
+            return Ok(out);
         };
-        let json = serde_json::to_string_pretty(&record)?;
-        let tmp = path.with_extension("json.tmp");
-        std::fs::write(&tmp, json).with_context(|| format!("writing {}", tmp.display()))?;
-        std::fs::rename(&tmp, path).with_context(|| format!("replacing {}", path.display()))?;
-        Ok(())
+        let _guard = lock::acquire(&path)?;
+        let mut record = read_record(&path)?.unwrap_or_default();
+        let before = record.clone();
+        let out = change(&mut record)?;
+        if let Some(document) = &self.document {
+            record.path = Some(document.clone());
+        }
+        if record != before {
+            lock::write_atomic(&path, &serde_json::to_string_pretty(&record)?)?;
+        }
+        self.adopt(record, doc);
+        Ok(out)
+    }
+
+    fn adopt(&mut self, record: Record, doc: Option<&Document>) {
+        let previous: HashMap<String, Resolution> =
+            self.annotations.iter().map(|a| a.id.clone()).zip(std::mem::take(&mut self.resolved)).collect();
+        self.resolved = record
+            .annotations
+            .iter()
+            .map(|a| match doc {
+                Some(doc) => resolve(&a.anchor, &doc.source, |o| doc.block_containing(o)),
+                None => previous.get(&a.id).cloned().unwrap_or(Resolution::Orphan),
+            })
+            .collect();
+        self.annotations = record.annotations;
+        self.deliveries = record.deliveries;
+        self.archived = record.archived;
     }
 
     /// Annotate `range` of the source. `rendered` is the selection's rendered text.
@@ -214,30 +275,11 @@ impl Store {
         kind: Kind,
         body: String,
     ) -> Result<()> {
-        let block = doc.block_containing(range.start);
-        let source_range = plannotator_tui_schema::SourceRange {
-            start: range.start,
-            end: range.end,
-            version: plannotator_tui_schema::blob_sha(doc.source.as_bytes()),
-        };
-        let anchor = Anchor::new(rendered, &doc.source, source_range, kind, block);
-        let now = timestamp()?;
-        self.annotations.push(Annotation {
-            id: local_id(),
-            document_id: String::new(),
-            anchor,
-            body,
-            author: None,
-            author_name: None,
-            state: State::Open,
-            attachments: Vec::new(),
-            created_at: now.clone(),
-            updated_at: now,
-            replies: Vec::new(),
-            other: std::collections::BTreeMap::default(),
-        });
-        self.resolved.push(Resolution::Range(range));
-        self.save()
+        let annotation = new_annotation(doc, range, rendered, kind, body)?;
+        self.mutate(Some(doc), |record| {
+            record.annotations.push(annotation);
+            Ok(())
+        })
     }
 
     /// Remove every annotation resolved into `block`. Returns how many were removed.
@@ -249,24 +291,19 @@ impl Store {
             .filter(|(_, r)| matches!(r, Resolution::Range(range) if doc.block_containing(range.start) == Some(block)))
             .map(|(a, _)| a.id.clone())
             .collect();
-        for id in &ids {
-            self.remove_unsaved(id);
-        }
-        self.save()?;
-        Ok(ids.len())
+        self.mutate(Some(doc), |record| {
+            let before = record.annotations.len();
+            record.annotations.retain(|a| !ids.contains(&a.id));
+            Ok(before - record.annotations.len())
+        })
     }
 
     pub(crate) fn remove(&mut self, id: &str) -> Result<bool> {
-        let removed = self.remove_unsaved(id);
-        self.save()?;
-        Ok(removed)
-    }
-
-    fn remove_unsaved(&mut self, id: &str) -> bool {
-        let Some(index) = self.annotations.iter().position(|a| a.id == id) else { return false };
-        self.annotations.remove(index);
-        self.resolved.remove(index);
-        true
+        self.mutate(None, |record| {
+            let before = record.annotations.len();
+            record.annotations.retain(|a| a.id != id);
+            Ok(record.annotations.len() < before)
+        })
     }
 
     pub(crate) fn resolve_all(&mut self, doc: &Document) {
@@ -301,6 +338,38 @@ impl Store {
     }
 }
 
+/// A new annotation on `range`, anchored for both this app and the Workspaces web client.
+pub(crate) fn new_annotation(
+    doc: &Document,
+    range: Range<usize>,
+    rendered: String,
+    kind: Kind,
+    body: String,
+) -> Result<Annotation> {
+    let block = doc.block_containing(range.start);
+    let source_range = plannotator_tui_schema::SourceRange {
+        start: range.start,
+        end: range.end,
+        version: plannotator_tui_schema::blob_sha(doc.source.as_bytes()),
+    };
+    let anchor = Anchor::new(rendered, &doc.source, source_range, kind, block);
+    let now = timestamp()?;
+    Ok(Annotation {
+        id: local_id(),
+        document_id: String::new(),
+        anchor,
+        body,
+        author: None,
+        author_name: None,
+        state: State::Open,
+        attachments: Vec::new(),
+        created_at: now.clone(),
+        updated_at: now,
+        replies: Vec::new(),
+        other: std::collections::BTreeMap::default(),
+    })
+}
+
 /// Howard Hinnant's days-to-civil, for a dependency-free UTC date.
 pub(crate) fn civil_from_days(days: u64) -> (u64, u64, u64) {
     let z = days + 719_468;
@@ -316,7 +385,7 @@ pub(crate) fn civil_from_days(days: u64) -> (u64, u64, u64) {
 }
 
 /// A local id in the server's style. Replaced by the server id once synced.
-fn local_id() -> String {
+pub(crate) fn local_id() -> String {
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos());
     format!("local_{nanos:x}")
 }
@@ -401,6 +470,41 @@ mod tests {
         std::fs::write(&location.record, r#"{"annotations":[]}"#).expect("old record");
         let store = Store::load(&location, &Document::parse("x\n".to_owned())).expect("loads");
         assert!(!store.all_delivered());
+        std::fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+    #[test]
+    fn a_write_keeps_changes_another_store_made_since_this_one_loaded() {
+        let root = temp_root("two-writers");
+        let location = Location::for_file(&root.join("data"), "proj", &root.join("doc.md"));
+        let doc = Document::parse("one two three\n".to_owned());
+        let mut first = Store::load(&location, &doc).expect("first");
+        let mut second = Store::load(&location, &doc).expect("second");
+        first.add(&doc, 0..3, "one".into(), Kind::Comment, "from first".into()).expect("first adds");
+        second.add(&doc, 4..7, "two".into(), Kind::Comment, "from second".into()).expect("second adds");
+        let bodies: Vec<String> = Store::load(&location, &doc)
+            .expect("reload")
+            .annotations
+            .iter()
+            .map(|a| a.body.clone())
+            .collect();
+        assert_eq!(bodies, ["from first", "from second"]);
+        assert_eq!(second.len(), 2, "the writer's memory is the record it wrote");
+        std::fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+    #[test]
+    fn an_edit_to_an_annotation_another_store_removed_is_a_no_op() {
+        let root = temp_root("vanished");
+        let location = Location::for_file(&root.join("data"), "proj", &root.join("doc.md"));
+        let doc = Document::parse("one two three\n".to_owned());
+        let mut first = Store::load(&location, &doc).expect("first");
+        first.add(&doc, 0..3, "one".into(), Kind::Comment, "a".into()).expect("add");
+        let id = first.annotations[0].id.clone();
+        let mut second = Store::load(&location, &doc).expect("second");
+        first.remove(&id).expect("removed");
+        assert!(!second.edit_body(&id, "edited".into()).expect("no error"), "nothing to edit");
+        assert_eq!(Store::load(&location, &doc).expect("reload").len(), 0, "not resurrected");
         std::fs::remove_dir_all(&root).expect("cleanup");
     }
 

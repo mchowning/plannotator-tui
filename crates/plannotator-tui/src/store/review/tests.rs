@@ -162,22 +162,27 @@ fn archiving_keeps_pending_notes_and_restores_complete_annotations_and_history()
     let (root, location, doc, mut store) = fixture("restore");
     let a = add(&mut store, &doc, "one", "A");
     let b = add(&mut store, &doc, "two", "B");
-    let annotation = &mut store.annotations[0];
-    annotation.state = State::Resolved;
-    annotation.author = Some("reviewer".into());
-    annotation.attachments = vec!["attachment.png".into()];
-    annotation.other.insert("future_field".into(), serde_json::json!({"keep": true}));
-    annotation.replies.push(Reply {
-        id: "reply-1".into(),
-        annotation_id: a.clone(),
-        body: "keep this reply".into(),
-        author: None,
-        author_name: None,
-        created_at: annotation.created_at.clone(),
-        updated_at: annotation.updated_at.clone(),
-        other: BTreeMap::default(),
-    });
-    let original = annotation.clone();
+    store
+        .mutate(None, |record| {
+            let annotation = &mut record.annotations[0];
+            annotation.state = State::Resolved;
+            annotation.author = Some("reviewer".into());
+            annotation.attachments = vec!["attachment.png".into()];
+            annotation.other.insert("future_field".into(), serde_json::json!({"keep": true}));
+            annotation.replies.push(Reply {
+                id: "reply-1".into(),
+                annotation_id: a.clone(),
+                body: "keep this reply".into(),
+                author: None,
+                author_name: None,
+                created_at: annotation.created_at.clone(),
+                updated_at: annotation.updated_at.clone(),
+                other: BTreeMap::default(),
+            });
+            Ok(())
+        })
+        .expect("fields other clients wrote");
+    let original = store.annotations[0].clone();
     store.record_delivery("agent", &[a.clone(), b.clone()]).expect("send");
     store.edit_body(&b, "B edited".into()).expect("edit B");
     add(&mut store, &doc, "three", "C");
@@ -204,17 +209,19 @@ fn archive_and_restore_failures_leave_memory_and_disk_intact() {
     let id = add(&mut store, &doc, "one", "keep me");
     store.record_delivery("agent", std::slice::from_ref(&id)).expect("send");
     let before = std::fs::read(&location.record).expect("record");
-    let blocked_tmp = location.record.with_extension("json.tmp");
-    std::fs::create_dir(&blocked_tmp).expect("block temporary file");
+    let blocked_lock = location.record.with_file_name("annotations.json.lock");
+    let _ = std::fs::remove_file(&blocked_lock);
+    std::fs::create_dir(&blocked_lock).expect("block the record lock");
     assert!(store.archive_sent().is_err());
     assert_eq!(store.len(), 1);
     assert!(store.archived().is_empty());
     assert_eq!(std::fs::read(&location.record).expect("record"), before);
-    std::fs::remove_dir(&blocked_tmp).expect("unblock");
+    std::fs::remove_dir(&blocked_lock).expect("unblock");
 
     store.archive_sent().expect("archive");
     let before = std::fs::read(&location.record).expect("archived record");
-    std::fs::create_dir(&blocked_tmp).expect("block temporary file");
+    let _ = std::fs::remove_file(&blocked_lock);
+    std::fs::create_dir(&blocked_lock).expect("block the record lock");
     assert!(store.restore_archived(&doc, &[id]).is_err());
     assert_eq!(store.len(), 0);
     assert_eq!(store.archived().len(), 1);

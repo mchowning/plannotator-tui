@@ -23,7 +23,7 @@ use crate::doc::Document;
 use crate::herdr::context::HerdrEnv;
 use crate::layout::DocLayout;
 
-const USAGE: &str = "usage:
+pub(crate) const USAGE: &str = "usage:
   plannotator-tui <file.md | folder>
   plannotator-tui --export <file.md>
   plannotator-tui --bench <file.md>
@@ -37,7 +37,13 @@ const USAGE: &str = "usage:
   plannotator-tui herdr last [--placement P] [--deliver-to <pane>] [--newest]
   plannotator-tui herdr pane
   plannotator-tui last [--host claude|codex|pi|omp|copilot|droid|hermes|opencode] [--pid N] [--session <transcript>]
-                       [--session-id <id>] [--stdin] [--print] [--pick N] [--newest]";
+                       [--session-id <id>] [--stdin] [--print] [--pick N] [--newest]
+  plannotator-tui thread list <file.md>
+  plannotator-tui thread fork <file.md> <id> --session P --origin S --fork-point F --model M --thinking T
+  plannotator-tui thread turn <file.md> <id> running|interrupted|failed [--detail TEXT] [--no-retry]
+  plannotator-tui thread reply <file.md> <id> --through <message-id>   (body on stdin)
+  plannotator-tui thread handoff <file.md>
+  plannotator-tui thread handoff-ack <file.md> <handoff-id>";
 
 /// Width the document gets when nothing else is known: gutter + rail + gap subtracted.
 fn doc_width(cols: u16) -> usize {
@@ -129,6 +135,10 @@ pub(crate) fn run(args: &[String]) -> Result<()> {
         Some("config") => show_config(),
         Some("herdr") => herdr_command(args.get(1..).unwrap_or_default()),
         Some("last") => last_command(args.get(1..).unwrap_or_default()),
+        Some("thread") => {
+            print!("{}", crate::thread_cli::run(args.get(1..).unwrap_or_default())?);
+            Ok(())
+        }
         Some(flag) if flag.starts_with("--") => anyhow::bail!("unknown flag {flag}\n{USAGE}"),
         Some(_) => interactive(&path(0)?),
         None => anyhow::bail!(USAGE),
