@@ -170,8 +170,9 @@ status line.
 
 ## Threads
 
-When pi's `/plannotator-file-tui` opens a single file, it attaches the review to that pi
-session (`PLANNOTATOR_TUI_AGENT_SESSION`). A comment can then become a thread: `Ctrl-R` in the
+When pi's `/plannotator-file-tui` opens a single file, or pi's `/plannotator-last-tui` opens
+the reply it just gave, it attaches the review to that pi session
+(`PLANNOTATOR_TUI_AGENT_SESSION`). A comment can then become a thread: `Ctrl-R` in the
 comment box, or on a comment in the notes. A copy of the pi session answers each thread in the
 background, several at once. Its box shows the latest message, `working…` while a turn runs,
 and a status line when one fails or is interrupted. `Enter` opens the thread in a panel beside
@@ -184,9 +185,12 @@ with the old quote struck through, and still takes replies.
 In an attached review, `q` and `E` ask `send this review to pi?`. `y` sends every comment and
 every thread transcript to that pi session as one message and archives the review, so the file
 reopens empty; archived threads are read-only transcripts. `n` closes and keeps everything for
-later. If pi exits before delivering a sent review, the next `/plannotator-file-tui` on that
-file from the same session delivers it first. Outside pi, and for folders and agent replies,
-`Ctrl-R` says `no agent session attached`.
+later; running the same command again reopens it. If pi exits before delivering a sent review,
+the next `/plannotator-file-tui` on that file, or `/plannotator-last-tui` on that reply, from
+the same session delivers it first; `/plannotator-last-tui` then stops, so you can read the
+answer before reviewing it. A thread in a reply review is told the file is a copy of its reply
+and not to edit it. Outside pi, for folders, for `/plannotator-last-tui recover`, and for the
+in-app `plannotator-tui last` view, `Ctrl-R` says `no agent session attached`.
 
 ## Where annotations live
 
