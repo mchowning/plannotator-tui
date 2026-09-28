@@ -13,6 +13,7 @@ mod menu;
 mod pick;
 mod poll;
 mod rail;
+mod remove;
 mod replies;
 mod review;
 #[cfg(test)]
@@ -60,6 +61,8 @@ enum Mode {
     Edit(String),
     /// Quit was asked for while feedback is unsent; the footer asks first.
     ConfirmQuit,
+    /// `x` was pressed; the footer asks before anything is removed.
+    ConfirmRemove(remove::Removal),
     /// Choosing which of the agent's recent messages to review.
     Pick,
     /// Restoring annotations from finished file reviews.
@@ -453,17 +456,6 @@ impl App {
         };
         self.compose = Compose::with_text(&body);
         self.mode = Mode::Edit(id);
-    }
-
-    fn remove_selected_annotation(&mut self) -> Result<()> {
-        let Some(id) = self.rail_selected_id() else { return Ok(()) };
-        if self.open.store.remove(&id)? {
-            self.mark_unsent();
-            self.status = Some("annotation removed".into());
-            self.clamp_rail_cursor();
-            self.sync_tree_counts();
-        }
-        Ok(())
     }
 
     fn clear_selection(&mut self) {

@@ -19,6 +19,7 @@ impl App {
             Event::Key(key) if key.kind != KeyEventKind::Release => match &self.mode {
                 Mode::Browse => self.browse_key(*key),
                 Mode::ConfirmQuit => self.confirm_quit_key(*key),
+                Mode::ConfirmRemove(_) => self.confirm_remove_key(*key),
                 Mode::Pick => self.pick_key(*key),
                 Mode::Archive => {
                     self.archive_key(*key);
@@ -117,7 +118,10 @@ impl App {
         match self.focus {
             Focus::Tree => self.tree_key(key),
             Focus::Document => self.document_key(key),
-            Focus::Rail => self.rail_key(key),
+            Focus::Rail => {
+                self.rail_key(key);
+                Ok(())
+            }
         }
     }
 
@@ -169,7 +173,7 @@ impl App {
         Ok(())
     }
 
-    fn rail_key(&mut self, key: KeyEvent) -> Result<()> {
+    fn rail_key(&mut self, key: KeyEvent) {
         let len = self.rail().len();
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
@@ -186,7 +190,7 @@ impl App {
                 _ => self.edit_selected_annotation(),
             },
             KeyCode::Char('e') => self.edit_selected_annotation(),
-            KeyCode::Char('x') | KeyCode::Delete => self.remove_selected_annotation()?,
+            KeyCode::Char('x') | KeyCode::Delete => self.ask_remove_selected_note(),
             KeyCode::Esc => self.focus = Focus::Document,
             _ => {}
         }
@@ -197,7 +201,6 @@ impl App {
             self.selected = block;
             self.ensure_selected_visible();
         }
-        Ok(())
     }
 
     fn document_key(&mut self, key: KeyEvent) -> Result<()> {
@@ -262,14 +265,7 @@ impl App {
                     self.act(Kind::Comment)?;
                 }
             }
-            (KeyCode::Char('x'), _) => {
-                let removed = self.open.store.remove_in_block(&self.open.doc, self.selected)?;
-                if removed > 0 {
-                    self.mark_unsent();
-                    self.sync_tree_counts();
-                }
-                self.status = Some(format!("removed {removed} annotation(s) on block"));
-            }
+            (KeyCode::Char('x'), _) => self.ask_remove_in_block(),
             _ => {}
         }
         Ok(())
@@ -383,6 +379,7 @@ impl App {
                     Mode::Compose
                     | Mode::Browse
                     | Mode::ConfirmQuit
+                    | Mode::ConfirmRemove(_)
                     | Mode::Pick
                     | Mode::Archive
                     | Mode::ReviewMenu

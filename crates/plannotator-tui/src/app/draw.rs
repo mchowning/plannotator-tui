@@ -96,7 +96,7 @@ impl App {
             Mode::Archive => self.draw_archive(frame),
             Mode::ReviewMenu => self.draw_review_menu(frame),
             Mode::Keys => self.draw_key_list(frame),
-            Mode::Browse | Mode::ConfirmQuit | Mode::Thread(_) => {}
+            Mode::Browse | Mode::ConfirmQuit | Mode::ConfirmRemove(_) | Mode::Thread(_) => {}
         }
     }
 
@@ -344,6 +344,11 @@ impl App {
                 " send feedback to {} before quitting? y send · n quit · esc cancel",
                 self.delivery.describe()
             );
+            frame.render_widget(Paragraph::new(Line::from(Span::raw(question).bold())), area);
+            return;
+        }
+        if let Mode::ConfirmRemove(removal) = &self.mode {
+            let question = self.removal_question(removal);
             frame.render_widget(Paragraph::new(Line::from(Span::raw(question).bold())), area);
             return;
         }

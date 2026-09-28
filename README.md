@@ -84,7 +84,7 @@ dimmed. The keys also work without opening the menu.
 | reply review | `S` send and close |
 | document | `j`/`k` block; `c` comment on the block; `x` clear its annotations; `v` select with `hjkl` `w` `b` `0` `$`; `i` move the cursor with those keys first, then `v` to select from there |
 | toolbar | `a` looks good · `c` comment · `d` delete · `Esc` |
-| notes | `j`/`k`; `e` edit; `x` remove; click a bubble; `Enter` edits a comment or opens a thread |
+| notes | `j`/`k`; `e` edit; `x` remove (asks first; so does `x` on a block); click a bubble; `Enter` edits a comment or opens a thread |
 | comment input (attached) | `Enter` saves a comment · `Ctrl-R` saves it as a thread |
 | notes (attached) | `Ctrl-R` makes a comment a thread, or retries a failed or interrupted turn · `Ctrl-O` resolves or unresolves a thread |
 | thread panel | type, `Enter` reply · `Ctrl-R` retry · `Ctrl-O` resolve or unresolve · `PgUp`/`PgDn` or the wheel scroll · `Esc` close |

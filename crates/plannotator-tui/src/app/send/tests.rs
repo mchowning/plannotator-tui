@@ -131,6 +131,7 @@ fn removing_a_sent_annotation_leaves_the_review_sent() {
         app.focus = Focus::Rail;
         app.rail_cursor = 1;
         press(&mut app, 'x');
+        press(&mut app, 'y');
         assert_eq!(app.open.store.len(), 1, "reply={reply}");
         assert_eq!(app.status.as_deref(), Some("annotation removed"), "reply={reply}");
         assert_eq!(app.send_state, SendState::Sent, "reply={reply}: removing B is not a change to send");
