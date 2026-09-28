@@ -152,8 +152,8 @@ impl App {
     /// The footer's `block N/M`, with `· row r/R` on a table row.
     fn position_status(&self) -> String {
         let block = format!("block {}/{}", self.selected + 1, self.open.doc.blocks.len());
-        let rows = self.open.doc.table_rows(self.selected).len();
-        match self.selected_table_row() {
+        let rows = self.open.doc.parts(self.selected).len();
+        match self.selected_part() {
             Some((row, _)) => format!("{block} · row {}/{rows}", row + 1),
             None => block,
         }

@@ -20,7 +20,7 @@ mod review;
 mod review_test_support;
 mod selection;
 mod send;
-mod table_rows;
+mod block_parts;
 #[cfg(test)]
 mod tests;
 mod thread_view;
@@ -475,7 +475,7 @@ impl App {
             self.cursor = (rendered.first_row, 0);
         }
         // A table is entered on its header row, not its top border.
-        self.select_table_row(0);
+        self.select_part(0);
         self.ensure_selected_visible();
     }
 
@@ -542,7 +542,7 @@ impl App {
             self.select_block(block);
             // select_block may nudge the view to fit a tall block; the page owns it here.
             self.scroll = scroll;
-            self.select_table_row_from(target);
+            self.select_part_from(target);
         }
     }
 

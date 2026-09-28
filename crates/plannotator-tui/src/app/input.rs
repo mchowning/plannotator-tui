@@ -261,7 +261,7 @@ impl App {
             }
             (KeyCode::Char('c') | KeyCode::Enter, _) => {
                 // No selection: comment on the selected table row, else the whole block.
-                let range = match self.selected_table_row() {
+                let range = match self.selected_part() {
                     Some((_, range)) => Some(range),
                     None => self.open.doc.blocks.get(self.selected).map(|b| b.range.clone()),
                 };

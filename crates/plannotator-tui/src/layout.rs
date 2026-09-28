@@ -215,7 +215,7 @@ mod tests {
         let doc = Document::parse(TABLE.to_owned());
         let layout = DocLayout::build(&doc, 100);
         let unmapped: Vec<&str> = doc
-            .table_rows(0)
+            .parts(0)
             .iter()
             .filter(|row| layout.rows_in_range(0, row).is_empty())
             .filter_map(|row| doc.source.get(row.clone()))

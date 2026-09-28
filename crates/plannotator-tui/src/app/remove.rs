@@ -49,7 +49,7 @@ impl App {
     /// `x` on the selected table row, else the selected block. Asks only when there is
     /// something to remove.
     pub(super) fn ask_remove_in_block(&mut self) {
-        let (range, scope) = match self.selected_table_row() {
+        let (range, scope) = match self.selected_part() {
             Some((_, range)) => (range, Scope::TableRow),
             None => match self.open.doc.blocks.get(self.selected) {
                 Some(block) => (block.range.clone(), Scope::Block),

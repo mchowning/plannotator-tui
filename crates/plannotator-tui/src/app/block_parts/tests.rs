@@ -131,7 +131,7 @@ fn x_on_a_table_row_removes_only_that_rows_notes() {
 }
 
 #[test]
-fn the_gutter_marks_the_selected_table_row_not_the_whole_table() {
+fn the_gutter_marks_the_selected_part_not_the_whole_table() {
     let mut app = table_app();
     highlighted_and_footer(&mut app);
     key(&mut app, KeyCode::Char('j'));
