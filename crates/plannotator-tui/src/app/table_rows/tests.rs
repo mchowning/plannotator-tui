@@ -105,3 +105,27 @@ fn paging_into_a_tall_table_selects_a_row_on_screen() {
     let highlighted = highlighted_and_footer(&mut app).0;
     assert_eq!(highlighted.len(), 1, "one row, and it is on screen: {highlighted:?}");
 }
+
+#[test]
+fn x_on_a_table_row_removes_only_that_rows_notes() {
+    let mut app = table_app();
+    app.add_quote_annotation("Ann", Kind::Comment, "a".into()).expect("comment");
+    app.add_quote_annotation("Bob", Kind::Comment, "b".into()).expect("comment");
+    highlighted_and_footer(&mut app);
+    key(&mut app, KeyCode::Char('j'));
+    key(&mut app, KeyCode::Char('x'));
+    assert_eq!(
+        app.status.as_deref(),
+        Some("no notes on this row"),
+        "the header has none, though the table does"
+    );
+
+    key(&mut app, KeyCode::Char('j'));
+    key(&mut app, KeyCode::Char('x'));
+    let footer = highlighted_and_footer(&mut app).1;
+    assert!(footer.contains("remove the note on this row? y remove"), "{footer}");
+    key(&mut app, KeyCode::Char('y'));
+    let left: Vec<_> = app.open.store.placed().iter().map(|p| p.annotation.body.clone()).collect();
+    assert_eq!(left, ["b"]);
+    assert_eq!(app.status.as_deref(), Some("removed 1 annotation(s) on row"));
+}

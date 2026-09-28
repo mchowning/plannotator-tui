@@ -82,7 +82,7 @@ dimmed. The keys also work without opening the menu.
 |---|---|
 | anywhere | `?` list the keys that work in this review (`/` filters it); `Tab` cycle tree · document · notes; `E` send; `t` tree; `r` reload; `q` quit |
 | reply review | `S` send and close |
-| document | `j`/`k` block, or row in a table; `c` comment on the block or table row (double-click for a whole table); `x` clear its annotations; `v` select with `hjkl` `w` `b` `0` `$`; `V` select whole rows; `i` move the cursor with those keys first, then `v` to select from there |
+| document | `j`/`k` block, or row in a table; `c` comment on the block or table row (double-click for a whole table); `x` clear its annotations (a table row's alone); `v` select with `hjkl` `w` `b` `0` `$`; `V` select whole rows; `i` move the cursor with those keys first, then `v` to select from there |
 | toolbar | `a` looks good · `c` comment · `d` delete · `Esc` |
 | notes | `j`/`k`; `e` edit; `x` remove (asks first; so does `x` on a block); click a bubble; `Enter` edits a comment or opens a thread |
 | comment input (attached) | `Enter` saves a comment · `Ctrl-R` saves it as a thread |

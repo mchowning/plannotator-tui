@@ -282,13 +282,13 @@ impl Store {
         })
     }
 
-    /// Remove every annotation resolved into `block`. Returns how many were removed.
-    pub(crate) fn remove_in_block(&mut self, doc: &Document, block: usize) -> Result<usize> {
+    /// Remove every annotation resolved to start inside `within`. Returns how many were removed.
+    pub(crate) fn remove_starting_in(&mut self, doc: &Document, within: &Range<usize>) -> Result<usize> {
         let ids: Vec<String> = self
             .annotations
             .iter()
             .zip(&self.resolved)
-            .filter(|(_, r)| matches!(r, Resolution::Range(range) if doc.block_containing(range.start) == Some(block)))
+            .filter(|(_, r)| matches!(r, Resolution::Range(range) if within.contains(&range.start)))
             .map(|(a, _)| a.id.clone())
             .collect();
         self.mutate(Some(doc), |record| {
