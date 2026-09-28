@@ -26,8 +26,6 @@ pub(super) struct RailEntry<'a> {
 
 /// Rows of a thread's latest message shown in its box; the panel has the rest.
 const PREVIEW_ROWS: usize = 4;
-/// Rows of a resolved thread's first message: it is collapsed, not gone.
-const RESOLVED_ROWS: usize = 2;
 
 /// The line under a thread's messages while a turn runs or after one ended badly. Never a
 /// message, never sent.
@@ -92,17 +90,18 @@ impl App {
             lines.extend(wrapped(entry.annotation.anchor.rendered(), Style::new().dim().crossed_out()));
         }
         if thread.resolved {
-            let mut rows: Vec<Line<'static>> = entry
-                .annotation
-                .body
-                .split('\n')
-                .flat_map(|line| wrapped(line, Style::new().dim()))
-                .collect();
-            if rows.len() > RESOLVED_ROWS {
-                rows.truncate(RESOLVED_ROWS);
-                rows.push(Line::from(Span::raw("…").dim()));
+            // Collapsed to one row of the first message, with room kept for the `…`.
+            let body = entry.annotation.body.trim();
+            let first_line = body.lines().next().unwrap_or("");
+            let rows = wrap_line(&Line::from(first_line.to_owned()), &[], width.saturating_sub(1));
+            let cut = rows.len() > 1 || first_line.len() < body.len();
+            if let Some(first) = rows.into_iter().next() {
+                let mut row = first.line.style(Style::new().dim());
+                if cut {
+                    row.push_span(Span::raw("…").dim());
+                }
+                lines.push(row);
             }
-            lines.extend(rows);
         } else if let Some(latest) = messages(entry.annotation).last() {
             let who = match latest.author {
                 Author::User => "you",

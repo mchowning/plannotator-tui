@@ -170,13 +170,13 @@ fn ctrl_o_on_a_rail_thread_resolves_it_and_again_unresolves_it() {
 }
 
 #[test]
-fn a_resolved_box_is_titled_resolved_and_shows_two_rows_of_the_first_message() {
+fn a_resolved_box_is_titled_resolved_and_shows_one_row_of_the_first_message() {
     let (_root, mut app, _) = answered_app("resolve-box");
     ctrl_o(&mut app);
     let screen = crate::app::review_test_support::draw(&mut app, 160, 45);
     assert!(screen.contains("· thread · resolved"), "{screen}");
-    assert!(screen.contains("Why two?") && screen.contains("second line"), "{screen}");
-    assert!(!screen.contains("third line"), "collapsed to two rows\n{screen}");
+    assert!(screen.contains("Why two?…"), "one row, marked as cut short\n{screen}");
+    assert!(!screen.contains("second line"), "collapsed to one row\n{screen}");
     assert!(!screen.contains("Two follows one."), "the latest message is hidden\n{screen}");
 
     ctrl_o(&mut app);

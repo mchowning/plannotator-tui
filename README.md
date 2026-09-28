@@ -180,7 +180,7 @@ the document, with the passage highlighted and a reply box. Replies land in the 
 review picks up the answers on its own within a second.
 
 `Ctrl-O` on a thread in the notes, or in its panel, marks it resolved: its box dims, says
-`resolved`, and shows only the first two rows of your first message. It is still sent, marked
+`resolved`, and shows only the first row of your first message. It is still sent, marked
 `(resolved)`. `Ctrl-O` again, or a reply, unresolves it.
 
 A thread whose passage was edited away moves to a `detached` group at the top of the notes,
