@@ -104,6 +104,7 @@ const KEY_LIST: &[(Group, &str, &str, When)] = &[
     (Group::Rail, "e", "edit the note", When::Always),
     (Group::Rail, "x/del", "remove the note", When::Always),
     (Group::Rail, "ctrl-r", "make a comment a thread, or retry a failed turn", When::Attached),
+    (Group::Rail, "ctrl-o", "resolve or unresolve a thread", When::Attached),
     (Group::Rail, "esc", "back to the document", When::Always),
     (Group::Tree, "j/k", "move", When::Tree),
     (Group::Tree, "enter/l", "open a file, or expand a folder", When::Tree),
@@ -124,6 +125,7 @@ const KEY_LIST: &[(Group, &str, &str, When)] = &[
     (Group::CommentBox, "esc", "cancel", When::Always),
     (Group::ThreadPanel, "enter", "send the reply", When::Attached),
     (Group::ThreadPanel, "ctrl-r", "retry a failed turn", When::Attached),
+    (Group::ThreadPanel, "ctrl-o", "resolve or unresolve", When::Attached),
     (Group::ThreadPanel, "pgup/pgdn", "scroll", When::Attached),
     (Group::ThreadPanel, "esc", "close", When::Attached),
 ];
@@ -294,10 +296,14 @@ impl App {
         let entries = self.rail();
         let Some(entry) = entries.get(self.rail_cursor) else { return "" };
         match &entry.thread {
-            Some(thread) if matches!(thread.turn, Turn::Failed { .. } | Turn::Interrupted) => {
-                "enter open \u{b7} ctrl-r retry \u{b7} "
+            Some(thread) => {
+                match (matches!(thread.turn, Turn::Failed { .. } | Turn::Interrupted), thread.resolved) {
+                    (true, false) => "enter open \u{b7} ctrl-r retry \u{b7} ctrl-o resolve \u{b7} ",
+                    (true, true) => "enter open \u{b7} ctrl-r retry \u{b7} ctrl-o unresolve \u{b7} ",
+                    (false, false) => "enter open \u{b7} ctrl-o resolve \u{b7} ",
+                    (false, true) => "enter open \u{b7} ctrl-o unresolve \u{b7} ",
+                }
             }
-            Some(_) => "enter open \u{b7} ",
             None if entry.annotation.anchor.kind() == Kind::Comment => "ctrl-r thread \u{b7} ",
             None => "",
         }

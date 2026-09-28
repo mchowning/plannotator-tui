@@ -6,7 +6,7 @@ use anyhow::Result;
 use plannotator_tui_schema::thread::{Author, messages};
 use plannotator_tui_schema::{Thread, ThreadState};
 use ratatui::Frame;
-use ratatui::crossterm::event::{KeyCode, KeyEvent, MouseEvent, MouseEventKind};
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::text::{Line, Span};
@@ -57,6 +57,9 @@ impl App {
         match key.code {
             KeyCode::PageUp => self.panel_back += page,
             KeyCode::PageDown => self.panel_back = self.panel_back.saturating_sub(page),
+            KeyCode::Char('o') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.toggle_resolved(&id)?;
+            }
             _ => match self.compose.handle_key(key) {
                 ComposeAction::Cancel => self.close_thread(),
                 ComposeAction::SaveThread => self.retry_thread(&id)?,
@@ -142,7 +145,11 @@ impl App {
         let read_only = thread.state == ThreadState::Historical;
         frame.render_widget(Clear, area);
         // The footer lists the keys; the title only has to say what this is.
-        let title = if read_only { " thread · read-only · esc closes " } else { " thread · esc closes " };
+        let title = match (read_only, thread.resolved) {
+            (true, _) => " thread · read-only · esc closes ",
+            (false, true) => " thread · resolved · esc closes ",
+            (false, false) => " thread · esc closes ",
+        };
         let outer = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)

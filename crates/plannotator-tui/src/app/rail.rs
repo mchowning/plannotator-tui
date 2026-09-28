@@ -26,6 +26,8 @@ pub(super) struct RailEntry<'a> {
 
 /// Rows of a thread's latest message shown in its box; the panel has the rest.
 const PREVIEW_ROWS: usize = 4;
+/// Rows of a resolved thread's first message: it is collapsed, not gone.
+const RESOLVED_ROWS: usize = 2;
 
 /// The line under a thread's messages while a turn runs or after one ended badly. Never a
 /// message, never sent.
@@ -89,7 +91,19 @@ impl App {
         if entry.range.is_none() {
             lines.extend(wrapped(entry.annotation.anchor.rendered(), Style::new().dim().crossed_out()));
         }
-        if let Some(latest) = messages(entry.annotation).last() {
+        if thread.resolved {
+            let mut rows: Vec<Line<'static>> = entry
+                .annotation
+                .body
+                .split('\n')
+                .flat_map(|line| wrapped(line, Style::new().dim()))
+                .collect();
+            if rows.len() > RESOLVED_ROWS {
+                rows.truncate(RESOLVED_ROWS);
+                rows.push(Line::from(Span::raw("…").dim()));
+            }
+            lines.extend(rows);
+        } else if let Some(latest) = messages(entry.annotation).last() {
             let who = match latest.author {
                 Author::User => "you",
                 Author::Agent => "agent",
@@ -149,7 +163,12 @@ impl App {
             let border =
                 if highlighted { Style::new().fg(accent(kind)) } else { Style::new().fg(Color::DarkGray) };
             let border = if rail_focused && index == self.rail_cursor { border.bold() } else { border };
-            let thread = if entry.thread.is_some() { " · thread" } else { "" };
+            let resolved = entry.thread.as_ref().is_some_and(|t| t.resolved);
+            let thread = match &entry.thread {
+                Some(_) if resolved => " · thread · resolved",
+                Some(_) => " · thread",
+                None => "",
+            };
             let sent = if self.is_file_review() && !self.open.store.is_pending(entry.annotation) {
                 " · sent"
             } else {
@@ -157,7 +176,7 @@ impl App {
             };
             let title = Span::styled(
                 format!(" {} {}{thread}{sent} ", glyph(kind), short_id(&entry.annotation.id)),
-                Style::new().fg(accent(kind)),
+                if resolved { Style::new().fg(Color::DarkGray) } else { Style::new().fg(accent(kind)) },
             );
             let bubble = Block::default()
                 .borders(Borders::ALL)

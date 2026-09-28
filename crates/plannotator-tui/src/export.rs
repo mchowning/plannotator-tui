@@ -82,7 +82,9 @@ fn is_thread(annotation: &Annotation) -> bool {
 }
 
 fn write_thread(out: &mut String, quote: &str, annotation: &Annotation) {
-    let _ = writeln!(out, "Thread on: \"{quote}\"");
+    let resolved = Thread::of(annotation).ok().flatten().is_some_and(|t| t.resolved);
+    let state = if resolved { " (resolved)" } else { "" };
+    let _ = writeln!(out, "Thread on: \"{quote}\"{state}");
     for message in messages(annotation) {
         let who = match message.author {
             Author::User => "user",
@@ -178,6 +180,16 @@ mod tests {
             feedback("terminal · w1:p1", &entries),
             "# Annotations on terminal · w1:p1\n\n## Annotation 1\nComment on: \"ls\"\n> why\n\n"
         );
+    }
+
+    #[test]
+    fn a_resolved_thread_is_sent_marked_resolved() {
+        let source = "Ship the login page.\n";
+        let (mut thread, range) = annotation(source, "login page", Kind::Comment, "Which page?");
+        Thread { resolved: true, ..Thread::default() }.store_on(&mut thread).expect("thread");
+        let entries = [Entry { annotation: &thread, lines: None, quote: source[range].to_owned() }];
+        let out = feedback("plan.md", &entries);
+        assert!(out.contains("Thread on: \"login page\" (resolved)\n- **user:** Which page?"), "{out}");
     }
 
     #[test]

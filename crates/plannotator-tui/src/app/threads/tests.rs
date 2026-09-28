@@ -133,3 +133,98 @@ fn ctrl_r_on_the_rail_without_an_agent_session_writes_nothing() {
     assert_eq!(app.status.as_deref(), Some("no agent session attached"));
     assert_eq!(std::fs::read(record_path(&app)).expect("record"), before);
 }
+
+// ----- resolve (FR32–FR34) --------------------------------------------------------------
+
+fn ctrl_o(app: &mut App) {
+    app.handle_event(&Event::Key(KeyEvent::new(KeyCode::Char('o'), KeyModifiers::CONTROL))).expect("ctrl-o");
+}
+
+fn resolved(app: &App) -> bool {
+    record(app)["annotations"][0]["plannotator_tui_thread"]["resolved"] == true
+}
+
+/// An attached review with an answered thread on "two" whose first message is three
+/// lines; the rail is focused on it.
+fn answered_app(tag: &str) -> (PathBuf, App, String) {
+    let (root, mut app, _) = file_app(tag);
+    app.attach_agent_session("pi".into());
+    app.add_quote_annotation("two", Kind::Comment, "Why two?\nsecond line\nthird line".into())
+        .expect("comment");
+    let id = app.open.store.placed()[0].annotation.id.clone();
+    app.open.store.thread_key(&id).expect("thread");
+    app.open.store.add_agent_reply(&id, &id, "Two follows one.".into()).expect("reply");
+    app.focus = Focus::Rail;
+    (root, app, id)
+}
+
+#[test]
+fn ctrl_o_on_a_rail_thread_resolves_it_and_again_unresolves_it() {
+    let (_root, mut app, _) = answered_app("resolve-rail");
+    ctrl_o(&mut app);
+    assert!(resolved(&app));
+    assert_eq!(app.status.as_deref(), Some("thread resolved"));
+    ctrl_o(&mut app);
+    assert!(!resolved(&app));
+    assert_eq!(app.status.as_deref(), Some("thread unresolved"));
+}
+
+#[test]
+fn a_resolved_box_is_titled_resolved_and_shows_two_rows_of_the_first_message() {
+    let (_root, mut app, _) = answered_app("resolve-box");
+    ctrl_o(&mut app);
+    let screen = crate::app::review_test_support::draw(&mut app, 160, 45);
+    assert!(screen.contains("· thread · resolved"), "{screen}");
+    assert!(screen.contains("Why two?") && screen.contains("second line"), "{screen}");
+    assert!(!screen.contains("third line"), "collapsed to two rows\n{screen}");
+    assert!(!screen.contains("Two follows one."), "the latest message is hidden\n{screen}");
+
+    ctrl_o(&mut app);
+    let screen = crate::app::review_test_support::draw(&mut app, 160, 45);
+    assert!(screen.contains("Two follows one.") && !screen.contains("· resolved"), "{screen}");
+}
+
+#[test]
+fn ctrl_o_in_the_thread_panel_toggles_resolved_and_o_is_still_text() {
+    let (_root, mut app, id) = answered_app("resolve-panel");
+    key(&mut app, KeyCode::Enter);
+    assert_eq!(app.mode, Mode::Thread(id.clone()));
+    press(&mut app, 'o');
+    ctrl_o(&mut app);
+    assert!(resolved(&app));
+    assert_eq!(app.mode, Mode::Thread(id), "the panel stays open");
+    let screen = crate::app::review_test_support::draw(&mut app, 160, 45);
+    assert!(screen.contains("thread · resolved"), "{screen}");
+    key(&mut app, KeyCode::Enter);
+    let replies = record(&app)["annotations"][0]["replies"].clone();
+    assert_eq!(replies.as_array().and_then(|r| r.last()).map(|r| r["body"].clone()), Some("o".into()));
+}
+
+#[test]
+fn resolving_needs_no_agent_session() {
+    let (_root, mut app, _) = answered_app("resolve-unattached");
+    app.agent_session = None;
+    ctrl_o(&mut app);
+    assert!(resolved(&app));
+}
+
+#[test]
+fn ctrl_o_on_a_regular_comment_or_a_historical_thread_writes_nothing() {
+    let (_root, mut app, _) = file_app("resolve-comment");
+    app.add_quote_annotation("two", Kind::Comment, "plain".into()).expect("comment");
+    app.focus = Focus::Rail;
+    let before = std::fs::read(record_path(&app)).expect("record");
+    ctrl_o(&mut app);
+    assert_eq!(std::fs::read(record_path(&app)).expect("record"), before);
+    assert_eq!(app.status.as_deref(), Some("not a thread"));
+
+    let (_root, mut app, _) = answered_app("resolve-historical");
+    let mut data = record(&app);
+    data["annotations"][0]["plannotator_tui_thread"]["state"] = "historical".into();
+    std::fs::write(record_path(&app), data.to_string()).expect("write");
+    crate::app::review_test_support::reopen(&mut app);
+    app.focus = Focus::Rail;
+    ctrl_o(&mut app);
+    assert!(!resolved(&app));
+    assert_eq!(app.status.as_deref(), Some("read-only: this thread was already sent"));
+}

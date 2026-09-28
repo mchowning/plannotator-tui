@@ -31,6 +31,10 @@ pub struct Thread {
     /// `None` until the first turn; removed on archive.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fork: Option<Fork>,
+    /// The person marked it settled. Changes how it is shown and sent, nothing else: a
+    /// resolved thread still takes replies and turns. Absent on the wire when false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub resolved: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -93,7 +97,13 @@ pub struct Message<'a> {
 
 impl Default for Thread {
     fn default() -> Self {
-        Self { state: ThreadState::Live, turn: Turn::Idle, answered_through: None, fork: None }
+        Self {
+            state: ThreadState::Live,
+            turn: Turn::Idle,
+            answered_through: None,
+            fork: None,
+            resolved: false,
+        }
     }
 }
 
@@ -180,6 +190,18 @@ mod tests {
     #[test]
     fn an_annotation_without_thread_data_is_a_regular_comment() {
         assert_eq!(Thread::of(&annotation("hi")).expect("readable"), None);
+    }
+
+    #[test]
+    fn a_resolved_thread_says_so_on_the_wire_and_a_thread_without_the_field_is_unresolved() {
+        let mut a = annotation("why?");
+        Thread { resolved: true, ..Thread::default() }.store_on(&mut a).expect("stored");
+        let json = serde_json::to_value(&a).expect("serializes");
+        assert_eq!(json[THREAD_KEY]["resolved"], true);
+        let older: Thread =
+            serde_json::from_value(serde_json::json!({"state": "live", "turn": {"status": "idle"}}))
+                .expect("reads");
+        assert!(!older.resolved);
     }
 
     #[test]

@@ -1,7 +1,8 @@
-//! Review threads: attaching an agent session, and the keys that start and retry threads.
+//! Review threads: attaching an agent session, and the keys that start, retry and resolve
+//! threads.
 
 use anyhow::Result;
-use plannotator_tui_schema::Provenance;
+use plannotator_tui_schema::{Provenance, ThreadState};
 
 use super::{App, Mode};
 use crate::store::ThreadKey;
@@ -64,6 +65,28 @@ impl App {
             ThreadKey::Retried => "retrying",
             ThreadKey::AlreadyThread => "already a thread",
             ThreadKey::Missing => "that comment was removed elsewhere",
+        };
+        self.status = Some(status.into());
+        Ok(())
+    }
+
+    /// Ctrl-O on the rail: resolve the selected thread, or unresolve it.
+    pub(super) fn resolve_key_on_rail(&mut self) -> Result<()> {
+        let Some(id) = self.rail_selected_id() else { return Ok(()) };
+        self.toggle_resolved(&id)
+    }
+
+    /// Ctrl-O on annotation `id`, from the rail or the thread panel. Needs no agent session:
+    /// resolving changes only how the thread is shown and sent.
+    pub(super) fn toggle_resolved(&mut self, id: &str) -> Result<()> {
+        let thread = self.open.store.threads()?.into_iter().find(|t| t.annotation.id == id).map(|t| t.thread);
+        let status = match thread {
+            None => "not a thread",
+            Some(t) if t.state == ThreadState::Historical => "read-only: this thread was already sent",
+            Some(t) => {
+                self.open.store.set_resolved(id, !t.resolved)?;
+                if t.resolved { "thread unresolved" } else { "thread resolved" }
+            }
         };
         self.status = Some(status.into());
         Ok(())

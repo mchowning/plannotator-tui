@@ -110,10 +110,14 @@ impl Store {
         })
     }
 
-    /// The person's reply in a live thread. Returns the reply id.
+    /// The person's reply in a live thread; it unresolves the thread. Returns the reply id.
     pub(crate) fn add_user_reply(&mut self, id: &str, body: String) -> Result<String> {
         self.mutate(None, |record| {
-            let (annotation, _) = live_thread(record, id)?;
+            let (annotation, mut thread) = live_thread(record, id)?;
+            if thread.resolved {
+                thread.resolved = false;
+                thread.store_on(annotation)?;
+            }
             let reply = reply(id, USER, body)?;
             let reply_id = reply.id.clone();
             annotation.replies.push(reply);
@@ -126,6 +130,16 @@ impl Store {
         self.mutate(None, |record| {
             let (annotation, mut thread) = live_thread(record, id)?;
             thread.fork = Some(fork);
+            thread.store_on(annotation)?;
+            Ok(())
+        })
+    }
+
+    /// Mark a live thread resolved, or not.
+    pub(crate) fn set_resolved(&mut self, id: &str, resolved: bool) -> Result<()> {
+        self.mutate(None, |record| {
+            let (annotation, mut thread) = live_thread(record, id)?;
+            thread.resolved = resolved;
             thread.store_on(annotation)?;
             Ok(())
         })
@@ -207,6 +221,32 @@ mod tests {
         let reloaded = Store::load(&location, &doc).expect("reload");
         assert_eq!(reloaded.annotations[0].body, "what is two?");
         assert!(thread(&reloaded, &id).expect("thread").needs_turn(&reloaded.annotations[0]));
+        std::fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn a_resolved_thread_stays_resolved_after_a_reload_and_still_takes_turns() {
+        let (root, location, doc, mut store) = fixture("resolve");
+        let id = store.add_thread(&doc, 0..3, "one".into(), "first".into()).expect("thread");
+        store.set_resolved(&id, true).expect("resolve");
+        let reloaded = Store::load(&location, &doc).expect("reload");
+        let t = thread(&reloaded, &id).expect("thread");
+        assert!(t.resolved);
+        assert!(t.needs_turn(&reloaded.annotations[0]), "resolving only changes how it looks");
+        store.set_resolved(&id, false).expect("unresolve");
+        assert!(!thread(&store, &id).expect("thread").resolved);
+        std::fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn a_user_reply_unresolves_a_thread_and_an_agent_reply_does_not() {
+        let (root, _, doc, mut store) = fixture("reply-unresolves");
+        let id = store.add_thread(&doc, 0..3, "one".into(), "first".into()).expect("thread");
+        store.set_resolved(&id, true).expect("resolve");
+        store.add_agent_reply(&id, &id, "answer".into()).expect("answer");
+        assert!(thread(&store, &id).expect("thread").resolved, "the agent finishing a turn leaves it");
+        store.add_user_reply(&id, "one more thing".into()).expect("reply");
+        assert!(!thread(&store, &id).expect("thread").resolved, "a new question reopens it");
         std::fs::remove_dir_all(root).expect("cleanup");
     }
 

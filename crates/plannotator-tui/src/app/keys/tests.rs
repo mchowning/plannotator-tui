@@ -112,6 +112,17 @@ fn an_attached_review_lists_ctrl_r_where_it_is_used() {
 }
 
 #[test]
+fn an_attached_review_lists_ctrl_o_on_the_rail_and_in_the_thread_panel() {
+    let (_root, mut app, _) = file_app("keys-ctrl-o");
+    app.attach_agent_session("pi".into());
+    press(&mut app, '?');
+    let rows = popup(&mut app, 160, 120);
+    for heading in ["Notes rail", "Thread panel"] {
+        assert!(has_row(group(&rows, heading), "ctrl-o"), "no ctrl-o under {heading}: {rows:#?}");
+    }
+}
+
+#[test]
 fn a_reply_review_lists_s_and_e_and_no_review_menu() {
     let (_root, mut app, _) = reply_app("keys-reply");
     press(&mut app, '?');
@@ -444,6 +455,17 @@ fn the_rail_names_the_thread_key_that_applies_to_the_selected_note() {
         let line = footer(&mut app, 160);
         assert!(line.contains("enter open · ctrl-r retry"), "{line:?}");
     }
+}
+
+#[test]
+fn the_rail_names_ctrl_o_for_a_thread_by_what_it_would_do() {
+    let (_root, mut app, [_, _, thread]) = hint_app("hints-resolve");
+    app.rail_cursor = 0;
+    assert!(!footer(&mut app, 160).contains("ctrl-o"), "{:?}", footer(&mut app, 160));
+    app.rail_cursor = 2;
+    assert!(footer(&mut app, 160).contains("enter open · ctrl-o resolve"), "{:?}", footer(&mut app, 160));
+    app.open.store.set_resolved(&thread, true).expect("resolve");
+    assert!(footer(&mut app, 160).contains("ctrl-o unresolve"), "{:?}", footer(&mut app, 160));
 }
 
 #[test]
