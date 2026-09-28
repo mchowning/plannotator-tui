@@ -241,6 +241,13 @@ impl App {
                 self.selection = Some(Selection::start(self.cursor));
                 self.status = Some("visual: move to extend, enter to select, esc to cancel".into());
             }
+            (KeyCode::Char('V'), _) => {
+                self.clear_selection();
+                let mut selection = Selection::start(self.cursor);
+                selection.linewise = true;
+                self.selection = Some(selection);
+                self.status = Some("visual line: j/k to extend, enter to select, esc to cancel".into());
+            }
             (KeyCode::Char('i'), _) => self.start_roaming(),
             (KeyCode::Char('j') | KeyCode::Down, _) => self.select_block(self.selected + 1),
             (KeyCode::Char('k') | KeyCode::Up, _) => self.select_block(self.selected.saturating_sub(1)),
@@ -275,7 +282,12 @@ impl App {
     fn visual_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => self.clear_selection(),
-            KeyCode::Enter | KeyCode::Char('v') => self.finish_selection(),
+            // The key that started this shape finishes it; the other key switches shape.
+            KeyCode::Char(ch @ ('v' | 'V')) => match self.selection.as_mut() {
+                Some(sel) if sel.linewise != (ch == 'V') => sel.linewise = ch == 'V',
+                _ => self.finish_selection(),
+            },
+            KeyCode::Enter => self.finish_selection(),
             _ => {
                 self.motion_key(key);
             }
@@ -289,7 +301,7 @@ impl App {
     fn start_roaming(&mut self) {
         self.clear_selection();
         self.roam = true;
-        self.status = Some("move: hjkl w b 0 $ · v select · esc back to blocks".into());
+        self.status = Some("move: hjkl w b 0 $ · v/V select · esc back to blocks".into());
     }
 
     /// The cursor motions shared by visual and roaming modes. True when `key` was one.

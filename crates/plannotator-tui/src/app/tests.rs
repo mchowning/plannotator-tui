@@ -472,6 +472,58 @@ fn roaming_moves_by_row_so_a_selection_can_start_mid_block() {
     assert_eq!(app.selected, 1);
 }
 
+/// A paragraph of two rows (a hard break) and a list, drawn.
+fn two_row_app() -> App {
+    let source = DocumentSource::new(
+        "first line\\\nsecond line\n\n- one\n- two\n".to_owned(),
+        "doc.md",
+        true,
+        Provenance::Stdin,
+    );
+    let mut app = App::open(source, 60, Box::new(Discard)).expect("app opens");
+    app.data_dir = scratch_data_dir();
+    draw(&mut app);
+    app
+}
+
+fn pending_text(app: &App) -> Option<&str> {
+    app.pending.as_ref().and_then(|p| app.open.doc.source.get(p.range.clone()))
+}
+
+#[test]
+fn shift_v_selects_whole_rows_whatever_column_the_cursor_is_on() {
+    let mut app = two_row_app();
+    let press = |app: &mut App, code| app.handle_event(&key(code, KeyModifiers::NONE)).expect("key");
+    // From block mode, V then enter takes the row the cursor is on.
+    press(&mut app, KeyCode::Char('V'));
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(pending_text(&app), Some("first line"));
+
+    // Mid-row, V still starts at column 0, and j extends by a whole row.
+    press(&mut app, KeyCode::Esc);
+    press(&mut app, KeyCode::Char('l'));
+    press(&mut app, KeyCode::Char('l'));
+    press(&mut app, KeyCode::Char('V'));
+    press(&mut app, KeyCode::Char('j'));
+    press(&mut app, KeyCode::Char('V'));
+    assert_eq!(pending_text(&app), Some("first line\\\nsecond line"), "V finishes a line selection");
+}
+
+#[test]
+fn v_and_shift_v_switch_the_selection_between_characters_and_lines() {
+    let mut app = two_row_app();
+    let press = |app: &mut App, code| app.handle_event(&key(code, KeyModifiers::NONE)).expect("key");
+    press(&mut app, KeyCode::Char('l'));
+    press(&mut app, KeyCode::Char('v'));
+    press(&mut app, KeyCode::Char('l'));
+    press(&mut app, KeyCode::Char('V'));
+    assert!(app.pending.is_none(), "V inside a character selection switches, not finishes");
+    press(&mut app, KeyCode::Char('v'));
+    assert!(app.pending.is_none(), "and v switches back");
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(pending_text(&app), Some("ir"));
+}
+
 #[test]
 fn a_block_key_ends_roaming() {
     let mut app = app(Box::new(Discard));
