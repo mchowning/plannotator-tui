@@ -82,10 +82,18 @@ impl App {
             self.draw_tree(frame, tree);
         }
         self.draw_document(frame, gutter, doc);
+        // The pane without focus is dimmed, so it is plain which one the keys go to.
+        let dim = Style::new().add_modifier(Modifier::DIM);
+        if self.focus != Focus::Document {
+            frame.buffer_mut().set_style(gutter.union(doc), dim);
+        }
         if panel_open {
             self.draw_thread_panel(frame, rail);
         } else if rail_width > 0 {
             self.draw_rail(frame, rail);
+            if self.focus != Focus::Rail {
+                frame.buffer_mut().set_style(rail, dim);
+            }
         }
         self.draw_footer(frame, footer);
         match &self.mode {
