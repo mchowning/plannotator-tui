@@ -126,6 +126,12 @@ const KEY_LIST: &[(Group, &str, &str, When)] = &[
     (Group::CommentBox, "ctrl-r", "save as a thread", When::Attached),
     (Group::CommentBox, "esc", "cancel", When::Always),
     (Group::ThreadPanel, "enter", "send the reply", When::Attached),
+    (
+        Group::ThreadPanel,
+        "ctrl-n",
+        "save as a note for the main agent, not answered in the thread",
+        When::Attached,
+    ),
     (Group::ThreadPanel, "ctrl-r", "retry a failed turn", When::Attached),
     (Group::ThreadPanel, "ctrl-o", "resolve or unresolve", When::Attached),
     (Group::ThreadPanel, "pgup/pgdn", "scroll", When::Attached),

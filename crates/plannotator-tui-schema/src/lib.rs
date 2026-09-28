@@ -20,5 +20,7 @@ pub use annotation::{Annotation, ApiError, CreateAnnotation, PatchAnnotation, Re
 pub use datadir::{annotations_dir, data_dir, history_slug, project_name, sanitize_tag};
 pub use resolve::{Resolution, resolve, web_will_match};
 pub use source::{DocumentSource, Provenance};
-pub use thread::{AGENT, Author, Fork, Message, THREAD_KEY, Thread, ThreadState, Turn, USER, messages};
+pub use thread::{
+    AGENT, Author, FOR_KEY, FOR_MAIN, Fork, Message, THREAD_KEY, Thread, ThreadState, Turn, USER, messages,
+};
 pub use version::blob_sha;

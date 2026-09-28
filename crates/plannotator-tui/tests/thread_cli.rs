@@ -243,3 +243,24 @@ fn the_record_lock_is_a_sibling_file() {
     let lock: &Path = &f.record_path().with_file_name("annotations.json.lock");
     assert!(lock.is_file());
 }
+
+#[test]
+fn a_note_for_the_main_agent_lists_with_author_note_so_the_runner_skips_it() {
+    let f = Fixture::new("note");
+    f.seed_threads(1, "live");
+    let mut record = f.record();
+    record["annotations"][0]["replies"] = json!([{
+        "id": "n1", "annotation_id": "t0", "body": "rename it", "author": "user",
+        "created_at": "2026-01-01T00:00:00.000Z", "updated_at": "2026-01-01T00:00:00.000Z",
+        "plannotator_tui_for": "main"
+    }]);
+    f.write_record(&record);
+    let listed = stdout_json(&f.thread(&["list"], ""));
+    assert_eq!(
+        listed["threads"][0]["messages"],
+        json!([
+            {"id": "t0", "author": "user", "body": "why?"},
+            {"id": "n1", "author": "note", "body": "rename it"}
+        ])
+    );
+}

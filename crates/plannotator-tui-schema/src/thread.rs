@@ -5,7 +5,8 @@
 //! sees a comment with replies. Its absence means a regular comment.
 //!
 //! The first user message is the annotation's `body`; later messages are `replies` whose
-//! `author` is [`USER`] or [`AGENT`], in the order they were sent.
+//! `author` is [`USER`] or [`AGENT`], in the order they were sent. A reply of the person's
+//! marked [`FOR_KEY`] = [`FOR_MAIN`] is a note for the main agent: the fork never answers it.
 
 use std::path::PathBuf;
 
@@ -19,6 +20,10 @@ pub const THREAD_KEY: &str = "plannotator_tui_thread";
 pub const USER: &str = "user";
 /// `Reply.author` of a message the agent wrote.
 pub const AGENT: &str = "agent";
+/// The `Reply.other` key naming who a message is for, when it is not the thread's fork.
+pub const FOR_KEY: &str = "plannotator_tui_for";
+/// [`FOR_KEY`]'s value on a note for the main agent.
+pub const FOR_MAIN: &str = "main";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Thread {
@@ -75,6 +80,8 @@ pub struct Fork {
 pub enum Author {
     User,
     Agent,
+    /// The person, writing to the main agent rather than the thread's fork.
+    Note,
 }
 
 impl Author {
@@ -82,6 +89,7 @@ impl Author {
         match self {
             Self::User => USER,
             Self::Agent => AGENT,
+            Self::Note => "note",
         }
     }
 }
@@ -137,12 +145,18 @@ impl Thread {
 }
 
 /// Every message of `annotation` in send order: its body, then its replies. A reply not
-/// written by the agent counts as the person's.
+/// written by the agent counts as the person's, and is a note when marked for main.
 pub fn messages(annotation: &Annotation) -> Vec<Message<'_>> {
     let first = Message { id: &annotation.id, author: Author::User, body: &annotation.body };
     let replies = annotation.replies.iter().map(|reply| Message {
         id: &reply.id,
-        author: if reply.author.as_deref() == Some(AGENT) { Author::Agent } else { Author::User },
+        author: if reply.author.as_deref() == Some(AGENT) {
+            Author::Agent
+        } else if reply.other.get(FOR_KEY).and_then(|v| v.as_str()) == Some(FOR_MAIN) {
+            Author::Note
+        } else {
+            Author::User
+        },
         body: &reply.body,
     });
     std::iter::once(first).chain(replies).collect()
@@ -249,6 +263,33 @@ mod tests {
             got,
             [("a1", Author::User, "first"), ("r1", Author::User, "queued"), ("r2", Author::Agent, "answer")]
         );
+    }
+
+    fn note(id: &str, body: &str) -> Reply {
+        let mut r = reply(id, USER, body);
+        r.other.insert(FOR_KEY.into(), FOR_MAIN.into());
+        r
+    }
+
+    #[test]
+    fn a_reply_for_the_main_agent_is_a_note_and_keeps_its_human_author_on_the_wire() {
+        let mut a = annotation("why?");
+        a.replies = vec![note("n1", "fix it later")];
+        let got: Vec<Author> = messages(&a).iter().map(|m| m.author).collect();
+        assert_eq!(got, [Author::User, Author::Note]);
+        let json = serde_json::to_value(&a.replies[0]).expect("serializes");
+        assert_eq!((json["author"].as_str(), json[FOR_KEY].as_str()), (Some(USER), Some(FOR_MAIN)));
+    }
+
+    #[test]
+    fn a_note_never_starts_a_turn_and_is_skipped_among_replies() {
+        let mut a = annotation("why?");
+        a.replies = vec![reply("r1", AGENT, "because"), note("n1", "for main")];
+        let answered = Thread { answered_through: Some("a1".into()), ..Thread::default() };
+        assert!(!answered.needs_turn(&a), "a note alone asks the fork nothing");
+        a.replies.push(reply("r2", USER, "and?"));
+        let pending: Vec<&str> = answered.unanswered(&a).iter().map(|m| m.id).collect();
+        assert_eq!(pending, ["r2"]);
     }
 
     #[test]

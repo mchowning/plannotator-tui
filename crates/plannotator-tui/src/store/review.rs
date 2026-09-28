@@ -49,6 +49,20 @@ fn last_delivery<'a>(deliveries: &'a [Delivered], id: &str) -> Option<&'a Delive
     deliveries.iter().rev().find(|d| d.annotation_ids.iter().any(|sent| sent == id))
 }
 
+/// Stamp `annotation` as changed now, advanced beyond its last send even when the clock
+/// has not ticked (or has moved backwards) since that send, so it is pending again. One
+/// millisecond is the smallest step the stored shape can represent.
+pub(super) fn touch(deliveries: &[Delivered], annotation: &mut Annotation) -> Result<()> {
+    let sent = last_delivery(deliveries, &annotation.id).and_then(|d| parse_time(&d.at));
+    let previous = [parse_time(&annotation.updated_at), sent].into_iter().flatten().max();
+    let mut now = OffsetDateTime::now_utc();
+    if let Some(previous) = previous {
+        now = now.max(previous.checked_add(Duration::milliseconds(1)).context("advancing annotation time")?);
+    }
+    annotation.updated_at = format_millis(now)?;
+    Ok(())
+}
+
 /// Coverage belongs to each annotation's last successful send, not the last batch.
 /// A delivery whose time cannot be read covers nothing, so the annotation stays
 /// pending rather than silently hiding feedback. An annotation whose own `updated_at`
@@ -80,26 +94,16 @@ impl Store {
         !self.annotations.is_empty() && self.annotations.iter().all(|a| !self.is_pending(a))
     }
 
-    /// Replace a body, advancing the existing timestamp beyond its last send even when
-    /// the clock has not ticked (or has moved backwards) since that send. One millisecond
-    /// is the smallest step the stored shape can represent.
+    /// Replace a body; the annotation is pending again (see [`touch`]).
     pub(crate) fn edit_body(&mut self, id: &str, body: String) -> Result<bool> {
         self.mutate(None, |record| {
-            let previous = last_delivery(&record.deliveries, id).and_then(|d| parse_time(&d.at));
             let Some(annotation) = record.annotations.iter_mut().find(|a| a.id == id) else {
                 return Ok(false);
             };
             if annotation.body == body {
                 return Ok(false);
             }
-            let previous = [parse_time(&annotation.updated_at), previous].into_iter().flatten().max();
-            let mut now = OffsetDateTime::now_utc();
-            if let Some(previous) = previous {
-                now = now.max(
-                    previous.checked_add(Duration::milliseconds(1)).context("advancing annotation time")?,
-                );
-            }
-            annotation.updated_at = format_millis(now)?;
+            touch(&record.deliveries, annotation)?;
             annotation.body = body;
             Ok(true)
         })

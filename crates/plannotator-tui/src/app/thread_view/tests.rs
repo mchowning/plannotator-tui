@@ -225,3 +225,34 @@ fn the_panel_title_fits_and_the_footer_names_the_panel_keys() {
     let footer = screen.lines().last().expect("footer");
     assert!(footer.contains("enter reply · ctrl-r retry · pgup/pgdn scroll · esc close"), "{footer}");
 }
+
+#[test]
+fn ctrl_n_in_the_panel_saves_a_note_for_the_main_agent_that_the_fork_is_not_asked() {
+    let (_root, mut app, id) = thread_app("panel-note");
+    app.open.store.add_agent_reply(&id, &id, "Two follows one.".into()).expect("answer");
+    key(&mut app, KeyCode::Enter);
+    type_text(&mut app, "Rename it later");
+    app.handle_event(&Event::Key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::CONTROL))).expect("ctrl-n");
+
+    let replies = record(&app)["annotations"][0]["replies"].clone();
+    assert_eq!(replies[1]["body"], "Rename it later");
+    assert_eq!(
+        (replies[1]["author"].as_str(), replies[1]["plannotator_tui_for"].as_str()),
+        (Some("user"), Some("main"))
+    );
+    let thread = app.open.store.threads().expect("threads").remove(0);
+    assert!(!thread.thread.needs_turn(thread.annotation), "the fork is not asked");
+    assert!(app.compose.value().is_empty(), "the input is cleared");
+    let screen = draw(&mut app, 160, 45);
+    assert!(screen.contains("you → main agent"), "{screen}");
+}
+
+#[test]
+fn a_note_needs_no_attached_agent_session() {
+    let (_root, mut app, _) = thread_app("panel-note-unattached");
+    app.agent_session = None;
+    key(&mut app, KeyCode::Enter);
+    type_text(&mut app, "For later");
+    app.handle_event(&Event::Key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::CONTROL))).expect("ctrl-n");
+    assert_eq!(record(&app)["annotations"][0]["replies"][0]["body"], "For later");
+}

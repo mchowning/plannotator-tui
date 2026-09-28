@@ -59,6 +59,9 @@ impl App {
             KeyCode::Char('o') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.toggle_resolved(&id)?;
             }
+            KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.send_panel_note(&id, &thread)?;
+            }
             _ => match self.compose.handle_key(key) {
                 ComposeAction::Cancel => self.close_thread(),
                 ComposeAction::SaveThread => self.retry_thread(&id)?,
@@ -80,6 +83,22 @@ impl App {
             self.compose = Compose::default();
             self.panel_back = 0;
             self.mark_unsent();
+        }
+        Ok(())
+    }
+
+    /// `Ctrl-N`: the box as a note for the main agent, which the fork does not answer. Needs
+    /// no agent session: the note waits for the next send like any other change.
+    fn send_panel_note(&mut self, id: &str, thread: &Thread) -> Result<()> {
+        let body = self.compose.value().trim().to_owned();
+        if thread.state == ThreadState::Historical {
+            self.status = Some("read-only: this thread was already sent".into());
+        } else if !body.is_empty() {
+            self.open.store.add_note(id, body)?;
+            self.compose = Compose::default();
+            self.panel_back = 0;
+            self.mark_unsent();
+            self.status = Some("note saved for the main agent".into());
         }
         Ok(())
     }
@@ -125,6 +144,7 @@ impl App {
             let (who, color) = match message.author {
                 Author::User => ("you", Color::Yellow),
                 Author::Agent => ("agent", Color::Cyan),
+                Author::Note => ("you → main agent", Color::Magenta),
             };
             lines.push(Line::from(Span::raw(who).bold().fg(color)));
             lines.extend(wrap(message.body, Style::new()));

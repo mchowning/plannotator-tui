@@ -106,6 +106,7 @@ impl App {
             let who = match latest.author {
                 Author::User => "you",
                 Author::Agent => "agent",
+                Author::Note => "you → main agent",
             };
             let text = format!("{who}: {}", latest.body);
             let mut rows: Vec<Line<'static>> =

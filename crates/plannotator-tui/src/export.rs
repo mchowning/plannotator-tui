@@ -89,6 +89,7 @@ fn write_thread(out: &mut String, quote: &str, annotation: &Annotation) {
         let who = match message.author {
             Author::User => "user",
             Author::Agent => "agent",
+            Author::Note => "user, for you (not answered in the thread)",
         };
         let _ = writeln!(out, "- **{who}:** {}", message.body.trim().replace('\n', "\n  "));
     }
@@ -190,6 +191,28 @@ mod tests {
         let entries = [Entry { annotation: &thread, lines: None, quote: source[range].to_owned() }];
         let out = feedback("plan.md", &entries);
         assert!(out.contains("Thread on: \"login page\" (resolved)\n- **user:** Which page?"), "{out}");
+    }
+
+    #[test]
+    fn a_note_in_a_thread_tells_the_main_agent_it_is_for_it() {
+        let source = "Ship the login page.\n";
+        let (mut thread, range) = annotation(source, "login page", Kind::Comment, "Which page?");
+        Thread::default().store_on(&mut thread).expect("thread");
+        let mut note: plannotator_tui_schema::Reply = serde_json::from_value(serde_json::json!({
+            "id": "n1", "annotation_id": "", "body": "Rename it too.", "author": "user",
+            "created_at": "", "updated_at": "", "plannotator_tui_for": "main"
+        }))
+        .expect("reply");
+        note.annotation_id.clone_from(&thread.id);
+        thread.replies.push(note);
+        let entries = [Entry { annotation: &thread, lines: None, quote: source[range].to_owned() }];
+        let out = feedback("plan.md", &entries);
+        assert!(
+            out.contains(
+                "- **user:** Which page?\n- **user, for you (not answered in the thread):** Rename it too."
+            ),
+            "{out}"
+        );
     }
 
     #[test]

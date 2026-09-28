@@ -87,7 +87,7 @@ dimmed. The keys also work without opening the menu.
 | notes | `j`/`k`; `e` edit; `x` remove (asks first; so does `x` on a block); click a bubble; `Enter` edits a comment or opens a thread |
 | comment input (attached) | `Enter` saves a comment · `Ctrl-R` saves it as a thread |
 | notes (attached) | `Ctrl-R` makes a comment a thread, or retries a failed or interrupted turn · `Ctrl-O` resolves or unresolves a thread |
-| thread panel | type, `Enter` reply · `Ctrl-R` retry · `Ctrl-O` resolve or unresolve · `PgUp`/`PgDn` or the wheel scroll · `Esc` close |
+| thread panel | type, `Enter` reply · `Ctrl-N` note for the main agent · `Ctrl-R` retry · `Ctrl-O` resolve or unresolve · `PgUp`/`PgDn` or the wheel scroll · `Esc` close |
 | file/folder review | `E` send new · `m` review menu (`R` resend all · `F` finish review · `U` undo · `H` archive) |
 | tree | `j`/`k`; `Enter` open; `.` show/hide dot-prefixed entries (`.agents/`, `.github/`); `E` sends new notes across all reviewed files, including collapsed folders |
 
@@ -177,7 +177,9 @@ comment box, or on a comment in the notes. A copy of the pi session answers each
 background, several at once. Its box shows the latest message, `working…` while a turn runs,
 and a status line when one fails or is interrupted. `Enter` opens the thread in a panel beside
 the document, with the passage highlighted and a reply box. Replies land in the record, and the
-review picks up the answers on its own within a second.
+review picks up the answers on its own within a second. `Ctrl-N` in the box saves it as a note
+for the main agent instead: the thread's copy does not answer it, it shows as `you → main agent`,
+and the next send carries it with the thread. A note does not unresolve a thread.
 
 `Ctrl-O` on a thread in the notes, or in its panel, marks it resolved: its box dims, says
 `resolved`, and shows only the first row of your first message. It is still sent, marked

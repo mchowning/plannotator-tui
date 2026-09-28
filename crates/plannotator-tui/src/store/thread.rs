@@ -7,9 +7,10 @@ use std::ops::Range;
 
 use anyhow::{Result, bail};
 use plannotator_tui_schema::{
-    AGENT, Annotation, Fork, Kind, Reply, Resolution, Thread, ThreadState, Turn, USER,
+    AGENT, Annotation, FOR_KEY, FOR_MAIN, Fork, Kind, Reply, Resolution, Thread, ThreadState, Turn, USER,
 };
 
+use super::review::touch;
 use super::{Record, Store, local_id, new_annotation, timestamp};
 use crate::doc::Document;
 
@@ -125,6 +126,22 @@ impl Store {
         })
     }
 
+    /// The person's note for the main agent in a live thread. The fork never answers it and
+    /// it leaves a resolved thread resolved; the thread is pending again so the next send
+    /// carries it. Returns the reply id.
+    pub(crate) fn add_note(&mut self, id: &str, body: String) -> Result<String> {
+        self.mutate(None, |record| {
+            let deliveries = record.deliveries.clone();
+            let (annotation, _) = live_thread(record, id)?;
+            let mut note = reply(id, USER, body)?;
+            note.other.insert(FOR_KEY.to_owned(), FOR_MAIN.into());
+            let note_id = note.id.clone();
+            annotation.replies.push(note);
+            touch(&deliveries, annotation)?;
+            Ok(note_id)
+        })
+    }
+
     /// Link a live thread to the fork that answers it.
     pub(crate) fn set_fork(&mut self, id: &str, fork: Fork) -> Result<()> {
         self.mutate(None, |record| {
@@ -176,6 +193,8 @@ impl Store {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::indexing_slicing, reason = "tests assert by panicking")]
 mod tests {
+    use plannotator_tui_schema::{Author, messages};
+
     use super::*;
     use crate::store::Location;
 
@@ -235,6 +254,34 @@ mod tests {
         assert!(t.needs_turn(&reloaded.annotations[0]), "resolving only changes how it looks");
         store.set_resolved(&id, false).expect("unresolve");
         assert!(!thread(&store, &id).expect("thread").resolved);
+        std::fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn a_note_starts_no_turn_leaves_a_resolved_thread_resolved_and_is_pending_after_a_send() {
+        let (root, location, doc, mut store) = fixture("note");
+        let id = store.add_thread(&doc, 0..3, "one".into(), "first".into()).expect("thread");
+        store.add_agent_reply(&id, &id, "answer".into()).expect("answer");
+        store.set_resolved(&id, true).expect("resolve");
+        // Sent at a time the clock has not reached: the note must still count as new.
+        store.annotations[0].updated_at = "2099-01-01T00:00:00.000Z".into();
+        store.deliveries.push(crate::store::Delivered {
+            at: "2099-01-01T00:00:00.000Z".into(),
+            target: "agent".into(),
+            annotation_ids: vec![id.clone()],
+        });
+        store.add_note(&id, "main: rename it".into()).expect("note");
+
+        let reloaded = Store::load(&location, &doc).expect("reload");
+        let annotation = &reloaded.annotations[0];
+        let t = thread(&reloaded, &id).expect("thread");
+        assert!(!t.needs_turn(annotation), "the fork is not asked");
+        assert!(t.resolved, "a note is not a new question for the thread");
+        assert!(reloaded.is_pending(annotation), "the next send carries the note");
+        assert_eq!(
+            messages(annotation).last().map(|m| (m.author, m.body)),
+            Some((Author::Note, "main: rename it"))
+        );
         std::fs::remove_dir_all(root).expect("cleanup");
     }
 
