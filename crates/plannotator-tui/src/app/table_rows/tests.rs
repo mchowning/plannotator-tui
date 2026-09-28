@@ -5,7 +5,7 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{App, Focus, Mode};
+use crate::app::{App, Focus, GUTTER, Mode};
 use crate::delivery::Discard;
 use crate::theme::palette;
 
@@ -128,4 +128,31 @@ fn x_on_a_table_row_removes_only_that_rows_notes() {
     let left: Vec<_> = app.open.store.placed().iter().map(|p| p.annotation.body.clone()).collect();
     assert_eq!(left, ["b"]);
     assert_eq!(app.status.as_deref(), Some("removed 1 annotation(s) on row"));
+}
+
+#[test]
+fn the_gutter_marks_the_selected_table_row_not_the_whole_table() {
+    let mut app = table_app();
+    highlighted_and_footer(&mut app);
+    key(&mut app, KeyCode::Char('j'));
+    let mut terminal = Terminal::new(TestBackend::new(120, 20)).expect("terminal");
+    terminal.draw(|frame| app.draw(frame)).expect("draw");
+    let buffer = terminal.backend().buffer();
+    let doc = app.geometry.doc;
+    let marked: Vec<String> = (doc.y..doc.bottom())
+        .filter(|&y| {
+            buffer
+                .cell((doc.x - GUTTER, y))
+                .is_some_and(|c| c.symbol() == "▍" && c.fg == ratatui::style::Color::Cyan)
+        })
+        .map(|y| {
+            (doc.x..doc.right())
+                .filter_map(|x| buffer.cell((x, y)))
+                .map(ratatui::buffer::Cell::symbol)
+                .collect::<String>()
+                .trim()
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(marked, ["│ Name │ Age │"]);
 }

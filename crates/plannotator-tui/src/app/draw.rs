@@ -173,7 +173,6 @@ impl App {
 
         for y in 0..doc.height {
             let row_index = self.scroll + usize::from(y);
-            let Some(block) = self.open.layout.block_at_row(row_index) else { continue };
             let Some(row) = self.open.layout.row(row_index) else { continue };
             let screen_y = doc.y + y;
             buf.set_line(doc.x, screen_y, &row.line, doc.width);
@@ -236,7 +235,7 @@ impl App {
                 buf.set_style(Rect { x, y: screen_y, width: 1, height: 1 }, palette().cursor);
             }
 
-            let marker = match (block == self.selected, row_has_annotation) {
+            let marker = match (selected_rows.contains(&row_index), row_has_annotation) {
                 (true, _) => Span::styled("▍", Style::new().fg(Color::Cyan)),
                 (false, true) => Span::styled("▍", Style::new().fg(Color::Yellow)),
                 (false, false) => Span::raw(" "),
