@@ -126,6 +126,7 @@ impl App {
     pub(super) fn draw_rail(&mut self, frame: &mut Frame, rail: Rect) {
         let view_end = self.scroll + usize::from(rail.height);
         let rail_focused = self.focus == Focus::Rail;
+        let part = self.selected_part().map(|(_, range)| range);
         let mut next_y = rail.y;
         let entries = self.rail();
         let mut bubbles = Vec::new();
@@ -158,8 +159,11 @@ impl App {
             if height < 3 {
                 break;
             }
-            let highlighted =
-                if rail_focused { index == self.rail_cursor } else { block == Some(self.selected) };
+            let highlighted = match (&part, entry.range) {
+                _ if rail_focused => index == self.rail_cursor,
+                (Some(part), Some(range)) => part.contains(&range.start),
+                _ => block == Some(self.selected),
+            };
             let border =
                 if highlighted { Style::new().fg(accent(kind)) } else { Style::new().fg(Color::DarkGray) };
             let border = if rail_focused && index == self.rail_cursor { border.bold() } else { border };

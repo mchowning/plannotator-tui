@@ -205,3 +205,42 @@ fn x_on_a_list_item_asks_about_that_item() {
     let footer = highlighted_and_footer(&mut app).1;
     assert!(footer.contains("remove the note on this item? y remove"), "{footer}");
 }
+
+/// The quoted source text of each rail card drawn with a coloured (not grey) border.
+fn highlighted_cards(app: &mut App) -> Vec<String> {
+    let mut terminal = Terminal::new(TestBackend::new(120, 20)).expect("terminal");
+    terminal.draw(|frame| app.draw(frame)).expect("draw");
+    let buffer = terminal.backend().buffer();
+    let placed = app.open.store.placed();
+    app.geometry
+        .bubbles
+        .iter()
+        .filter(|(rect, _)| {
+            buffer.cell((rect.x, rect.y)).is_some_and(|c| c.fg != ratatui::style::Color::DarkGray)
+        })
+        .filter_map(|(_, id)| placed.iter().find(|p| &p.annotation.id == id))
+        .filter_map(|p| app.open.doc.source.get(p.range.clone()).map(str::to_owned))
+        .collect()
+}
+
+#[test]
+fn on_a_table_row_only_that_rows_notes_are_highlighted_in_the_rail() {
+    let mut app = table_app();
+    app.add_quote_annotation("Ann", Kind::Comment, "a".into()).expect("comment");
+    app.add_quote_annotation("Bob", Kind::Comment, "b".into()).expect("comment");
+    highlighted_and_footer(&mut app);
+    key(&mut app, KeyCode::Char('j'));
+    assert!(highlighted_cards(&mut app).is_empty(), "the header row has no notes");
+    key(&mut app, KeyCode::Char('j'));
+    assert_eq!(highlighted_cards(&mut app), ["Ann"]);
+}
+
+#[test]
+fn on_a_list_item_only_that_items_notes_are_highlighted_in_the_rail() {
+    let mut app = list_app();
+    app.add_quote_annotation("one", Kind::Comment, "a".into()).expect("comment");
+    app.add_quote_annotation("three", Kind::Comment, "c".into()).expect("comment");
+    highlighted_and_footer(&mut app);
+    key(&mut app, KeyCode::Char('j'));
+    assert_eq!(highlighted_cards(&mut app), ["one"]);
+}
