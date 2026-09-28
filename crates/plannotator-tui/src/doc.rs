@@ -25,6 +25,14 @@ pub(crate) enum BlockKind {
 }
 
 impl BlockKind {
+    /// What one of this kind's parts (see `Block::parts`) is called in the footer and prompts.
+    pub(crate) fn part_noun(self) -> &'static str {
+        match self {
+            BlockKind::List => "item",
+            _ => "row",
+        }
+    }
+
     /// Code and tables keep their columns; everything else word-wraps.
     pub(crate) fn preserves_columns(self) -> bool {
         matches!(self, BlockKind::CodeBlock | BlockKind::Table)
@@ -36,7 +44,8 @@ pub(crate) struct Block {
     pub(crate) range: Range<usize>,
     pub(crate) kind: BlockKind,
     /// What block mode steps through inside this block, in order: a table's header row
-    /// and body rows. Empty for every other kind.
+    /// and body rows, or a list's top-level items (each with any list nested in it).
+    /// Empty for every other kind.
     pub(crate) parts: Vec<Range<usize>>,
 }
 
@@ -114,7 +123,7 @@ fn split_blocks(source: &str) -> Vec<Block> {
             }
             Event::End(end) => {
                 depth = depth.saturating_sub(1);
-                if depth == 1 && matches!(end, TagEnd::TableHead | TagEnd::TableRow) {
+                if depth == 1 && matches!(end, TagEnd::TableHead | TagEnd::TableRow | TagEnd::Item) {
                     parts.push(range);
                 } else if depth == 0
                     && let Some((start, kind)) = open.take()
@@ -177,6 +186,13 @@ mod tests {
         let rows: Vec<_> = doc.parts(0).iter().filter_map(|r| doc.source.get(r.clone())).collect();
         assert_eq!(rows, ["| Name | Age |", "| Ann | 30 |", "| Bob | 41 |"]);
         assert!(doc.parts(1).is_empty(), "only tables have rows");
+    }
+
+    #[test]
+    fn a_list_records_each_top_level_item_with_its_nested_items_inside() {
+        let doc = Document::parse("- one\n- two\n  - nested\n- three\n".to_owned());
+        let items: Vec<_> = doc.parts(0).iter().filter_map(|r| doc.source.get(r.clone())).collect();
+        assert_eq!(items, ["- one", "- two\n  - nested", "- three"]);
     }
 
     #[test]

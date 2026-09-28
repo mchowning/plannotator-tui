@@ -156,3 +156,52 @@ fn the_gutter_marks_the_selected_part_not_the_whole_table() {
         .collect();
     assert_eq!(marked, ["│ Name │ Age │"]);
 }
+
+const LIST: &str = "# L\n\n- one\n- two is a longer item, long enough that it has to wrap onto a second row even in a window a hundred and twenty columns wide\n  - nested\n- three\n\nafter\n";
+
+fn list_app() -> App {
+    let source = DocumentSource::new(LIST.to_owned(), "l", true, Provenance::Stdin);
+    let mut app = App::open(source, 60, Box::new(Discard)).expect("app opens");
+    app.data_dir = std::env::temp_dir().join(format!("plannotator-tui-list-items-{}", std::process::id()));
+    app
+}
+
+#[test]
+fn j_steps_through_a_lists_items_each_with_its_wrapped_and_nested_rows() {
+    let mut app = list_app();
+    highlighted_and_footer(&mut app);
+    key(&mut app, KeyCode::Char('j'));
+    let (highlighted, footer) = highlighted_and_footer(&mut app);
+    assert_eq!(highlighted, ["- one"]);
+    assert!(footer.contains("block 2/3 · item 1/3"), "{footer}");
+
+    key(&mut app, KeyCode::Char('j'));
+    let highlighted = highlighted_and_footer(&mut app).0;
+    assert!(highlighted.first().is_some_and(|r| r.starts_with("- two")), "{highlighted:?}");
+    assert_eq!(highlighted.len(), 3, "both rows of the wrapped item, and the nested one: {highlighted:?}");
+    assert_eq!(
+        highlighted.last().map(String::as_str),
+        Some("- nested"),
+        "a nested item goes with its parent"
+    );
+
+    key(&mut app, KeyCode::Char('j'));
+    key(&mut app, KeyCode::Char('c'));
+    let pending = app.pending.as_ref().expect("a pending selection");
+    assert_eq!(app.open.doc.source.get(pending.range.clone()), Some("- three"));
+}
+
+#[test]
+fn x_on_a_list_item_asks_about_that_item() {
+    let mut app = list_app();
+    app.add_quote_annotation("three", Kind::Comment, "c".into()).expect("comment");
+    highlighted_and_footer(&mut app);
+    key(&mut app, KeyCode::Char('j'));
+    key(&mut app, KeyCode::Char('x'));
+    assert_eq!(app.status.as_deref(), Some("no notes on this item"));
+    key(&mut app, KeyCode::Char('G'));
+    key(&mut app, KeyCode::Char('k'));
+    key(&mut app, KeyCode::Char('x'));
+    let footer = highlighted_and_footer(&mut app).1;
+    assert!(footer.contains("remove the note on this item? y remove"), "{footer}");
+}

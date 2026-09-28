@@ -3,6 +3,7 @@
 
 mod archive_view;
 mod attached_send;
+mod block_parts;
 mod compose;
 mod draw;
 mod feedback;
@@ -20,7 +21,6 @@ mod review;
 mod review_test_support;
 mod selection;
 mod send;
-mod block_parts;
 #[cfg(test)]
 mod tests;
 mod thread_view;
@@ -474,7 +474,7 @@ impl App {
         if let Some(rendered) = self.open.layout.blocks.get(self.selected) {
             self.cursor = (rendered.first_row, 0);
         }
-        // A table is entered on its header row, not its top border.
+        // A table or list is entered on its first part: a table on its header, not its top border.
         self.select_part(0);
         self.ensure_selected_visible();
     }

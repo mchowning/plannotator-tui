@@ -149,13 +149,13 @@ impl App {
         frame.render_widget(Paragraph::new(lines), inner);
     }
 
-    /// The footer's `block N/M`, with `· row r/R` on a table row.
+    /// The footer's `block N/M`, with `· row r/R` on a table row or `· item i/I` on a list item.
     fn position_status(&self) -> String {
         let block = format!("block {}/{}", self.selected + 1, self.open.doc.blocks.len());
-        let rows = self.open.doc.parts(self.selected).len();
-        match self.selected_part() {
-            Some((row, _)) => format!("{block} · row {}/{rows}", row + 1),
-            None => block,
+        let parts = self.open.doc.parts(self.selected).len();
+        match (self.selected_part(), self.open.doc.blocks.get(self.selected)) {
+            (Some((part, _)), Some(b)) => format!("{block} · {} {}/{parts}", b.kind.part_noun(), part + 1),
+            _ => block,
         }
     }
 

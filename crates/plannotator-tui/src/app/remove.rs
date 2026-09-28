@@ -1,5 +1,5 @@
-//! Removing notes: `x` in the rail, on a block or on a table row asks before anything is
-//! deleted.
+//! Removing notes: `x` in the rail, on a block, a table row or a list item asks before
+//! anything is deleted.
 
 use std::ops::Range;
 
@@ -15,23 +15,8 @@ pub(super) enum Removal {
     /// One rail note, by annotation id.
     Note(String),
     /// Every note that starts in this source range.
-    Within(Range<usize>, Scope),
-}
-
-/// What `x` in the document was pressed on, for the question and the status.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum Scope {
-    Block,
-    TableRow,
-}
-
-impl Scope {
-    fn noun(self) -> &'static str {
-        match self {
-            Self::Block => "block",
-            Self::TableRow => "row",
-        }
-    }
+    /// What `x` was pressed on ("block", "row", "item") names it in the question and status.
+    Within(Range<usize>, &'static str),
 }
 
 fn is_thread(annotation: &Annotation) -> bool {
@@ -46,20 +31,18 @@ impl App {
         }
     }
 
-    /// `x` on the selected table row, else the selected block. Asks only when there is
-    /// something to remove.
+    /// `x` on the selected table row or list item, else the selected block. Asks only when
+    /// there is something to remove.
     pub(super) fn ask_remove_in_block(&mut self) {
-        let (range, scope) = match self.selected_part() {
-            Some((_, range)) => (range, Scope::TableRow),
-            None => match self.open.doc.blocks.get(self.selected) {
-                Some(block) => (block.range.clone(), Scope::Block),
-                None => return,
-            },
+        let Some(block) = self.open.doc.blocks.get(self.selected) else { return };
+        let (range, on) = match self.selected_part() {
+            Some((_, range)) => (range, block.kind.part_noun()),
+            None => (block.range.clone(), "block"),
         };
         if self.notes_within(&range).is_empty() {
-            self.status = Some(format!("no notes on this {}", scope.noun()));
+            self.status = Some(format!("no notes on this {on}"));
         } else {
-            self.mode = Mode::ConfirmRemove(Removal::Within(range, scope));
+            self.mode = Mode::ConfirmRemove(Removal::Within(range, on));
         }
     }
 
@@ -84,10 +67,9 @@ impl App {
                     "remove this note?".to_owned()
                 }
             }
-            Removal::Within(range, scope) => {
+            Removal::Within(range, on) => {
                 let notes = self.notes_within(range);
                 let threads = notes.iter().filter(|a| is_thread(a)).count();
-                let on = scope.noun();
                 match (notes.len(), threads) {
                     (1, 1) => format!("remove the thread on this {on} and its conversation?"),
                     (1, _) => format!("remove the note on this {on}?"),
@@ -127,13 +109,13 @@ impl App {
                     self.sync_tree_counts();
                 }
             }
-            Removal::Within(range, scope) => {
+            Removal::Within(range, on) => {
                 let removed = self.open.store.remove_starting_in(&self.open.doc, range)?;
                 if removed > 0 {
                     self.mark_unsent();
                     self.sync_tree_counts();
                 }
-                self.status = Some(format!("removed {removed} annotation(s) on {}", scope.noun()));
+                self.status = Some(format!("removed {removed} annotation(s) on {on}"));
             }
         }
         Ok(())
