@@ -244,3 +244,50 @@ fn on_a_list_item_only_that_items_notes_are_highlighted_in_the_rail() {
     key(&mut app, KeyCode::Char('j'));
     assert_eq!(highlighted_cards(&mut app), ["one"]);
 }
+
+/// The text of the document rows with the cyan selection mark in the gutter.
+fn gutter_marked(app: &mut App) -> Vec<String> {
+    let mut terminal = Terminal::new(TestBackend::new(120, 20)).expect("terminal");
+    terminal.draw(|frame| app.draw(frame)).expect("draw");
+    let buffer = terminal.backend().buffer();
+    let doc = app.geometry.doc;
+    (doc.y..doc.bottom())
+        .filter(|&y| {
+            buffer
+                .cell((doc.x - GUTTER, y))
+                .is_some_and(|c| c.symbol() == "▍" && c.fg == ratatui::style::Color::Cyan)
+        })
+        .map(|y| {
+            (doc.x..doc.right())
+                .filter_map(|x| buffer.cell((x, y)))
+                .map(ratatui::buffer::Cell::symbol)
+                .collect::<String>()
+                .trim()
+                .to_owned()
+        })
+        .collect()
+}
+
+#[test]
+fn a_rail_card_for_a_table_row_marks_only_that_row() {
+    let mut app = table_app();
+    app.add_quote_annotation("Ann", Kind::Comment, "a".into()).expect("comment");
+    app.add_quote_annotation("Bob", Kind::Comment, "b".into()).expect("comment");
+    highlighted_and_footer(&mut app);
+    key(&mut app, KeyCode::Tab);
+    assert_eq!(app.focus, Focus::Rail);
+    assert_eq!(gutter_marked(&mut app), ["│ Ann  │ 30  │"], "tab lands on the first card");
+    key(&mut app, KeyCode::Char('j'));
+    assert_eq!(gutter_marked(&mut app), ["│ Bob  │ 41  │"]);
+
+    key(&mut app, KeyCode::Esc);
+    let ann_card = app.geometry.bubbles.first().expect("a card").0;
+    app.handle_event(&Event::Mouse(ratatui::crossterm::event::MouseEvent {
+        kind: ratatui::crossterm::event::MouseEventKind::Down(ratatui::crossterm::event::MouseButton::Left),
+        column: ann_card.x + 1,
+        row: ann_card.y + 1,
+        modifiers: KeyModifiers::NONE,
+    }))
+    .expect("click");
+    assert_eq!(gutter_marked(&mut app), ["│ Ann  │ 30  │"], "clicking a card marks its row");
+}

@@ -154,6 +154,9 @@ impl App {
             Focus::Document | Focus::Rail if has_tree => Focus::Tree,
             Focus::Tree | Focus::Document | Focus::Rail => Focus::Document,
         };
+        if self.focus == Focus::Rail {
+            self.select_rail_card_passage();
+        }
     }
 
     fn tree_key(&mut self, key: KeyEvent) -> Result<()> {
@@ -194,6 +197,11 @@ impl App {
             KeyCode::Esc => self.focus = Focus::Document,
             _ => {}
         }
+        self.select_rail_card_passage();
+    }
+
+    /// Select, in the document, where the rail card under the cursor is anchored.
+    fn select_rail_card_passage(&mut self) {
         if let Some(start) = self.rail().get(self.rail_cursor).and_then(|e| e.range.map(|r| r.start)) {
             self.select_offset(start);
         }
@@ -442,6 +450,7 @@ impl App {
                 if let Some(index) = self.bubble_hit(mouse.column, mouse.row) {
                     self.rail_cursor = index;
                     self.focus = Focus::Rail;
+                    self.select_rail_card_passage();
                     return Ok(());
                 }
                 let now = std::time::Instant::now();
