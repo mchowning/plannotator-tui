@@ -20,6 +20,7 @@ mod review;
 mod review_test_support;
 mod selection;
 mod send;
+mod table_rows;
 #[cfg(test)]
 mod tests;
 mod thread_view;
@@ -473,14 +474,16 @@ impl App {
         if let Some(rendered) = self.open.layout.blocks.get(self.selected) {
             self.cursor = (rendered.first_row, 0);
         }
+        // A table is entered on its header row, not its top border.
+        self.select_table_row(0);
         self.ensure_selected_visible();
     }
 
     fn ensure_selected_visible(&mut self) {
         let height = usize::from(self.geometry.doc.height.max(1));
-        let Some(block) = self.open.layout.blocks.get(self.selected) else { return };
-        let first = block.first_row;
-        let last = first + block.rows.len().saturating_sub(1);
+        let rows = self.selected_rows();
+        let first = rows.start;
+        let last = rows.end.saturating_sub(1).max(first);
         if first < self.scroll {
             self.scroll = first.saturating_sub(1);
         } else if last >= self.scroll + height {
@@ -539,6 +542,7 @@ impl App {
             self.select_block(block);
             // select_block may nudge the view to fit a tall block; the page owns it here.
             self.scroll = scroll;
+            self.select_table_row_from(target);
         }
     }
 

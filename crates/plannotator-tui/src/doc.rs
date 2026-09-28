@@ -7,7 +7,7 @@
 
 use std::ops::Range;
 
-use pulldown_cmark::{Event, Options, Parser, Tag};
+use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BlockKind {
@@ -35,6 +35,8 @@ impl BlockKind {
 pub(crate) struct Block {
     pub(crate) range: Range<usize>,
     pub(crate) kind: BlockKind,
+    /// A table's header row and body rows, in order; empty for every other kind.
+    pub(crate) table_rows: Vec<Range<usize>>,
 }
 
 #[derive(Debug)]
@@ -69,6 +71,11 @@ impl Document {
         self.blocks.get(index).map_or("", |b| &self.source[b.range.clone()])
     }
 
+    /// Source ranges of block `index`'s table rows; empty when it is not a table.
+    pub(crate) fn table_rows(&self, index: usize) -> &[Range<usize>] {
+        self.blocks.get(index).map_or(&[], |b| &b.table_rows)
+    }
+
     /// The block whose range contains `offset`.
     pub(crate) fn block_containing(&self, offset: usize) -> Option<usize> {
         self.blocks.iter().position(|b| b.range.contains(&offset))
@@ -94,6 +101,7 @@ fn split_blocks(source: &str) -> Vec<Block> {
     let mut blocks = Vec::new();
     let mut depth = 0usize;
     let mut open: Option<(usize, BlockKind)> = None;
+    let mut table_rows = Vec::new();
 
     for (event, range) in Parser::new_ext(source, parse_options()).into_offset_iter() {
         match event {
@@ -103,27 +111,35 @@ fn split_blocks(source: &str) -> Vec<Block> {
                 }
                 depth += 1;
             }
-            Event::End(_) => {
+            Event::End(end) => {
                 depth = depth.saturating_sub(1);
-                if depth == 0
+                if depth == 1 && matches!(end, TagEnd::TableHead | TagEnd::TableRow) {
+                    table_rows.push(range);
+                } else if depth == 0
                     && let Some((start, kind)) = open.take()
                 {
-                    blocks.push(Block { range: start..range.end, kind });
+                    let table_rows = std::mem::take(&mut table_rows);
+                    blocks.push(Block { range: start..range.end, kind, table_rows });
                 }
             }
-            Event::Rule if depth == 0 => blocks.push(Block { range, kind: BlockKind::Rule }),
+            Event::Rule if depth == 0 => {
+                blocks.push(Block { range, kind: BlockKind::Rule, table_rows: Vec::new() });
+            }
             // Any other depth-zero leaf (rare: stray html/text) becomes its own block.
-            _ if depth == 0 => blocks.push(Block { range, kind: BlockKind::Other }),
+            _ if depth == 0 => blocks.push(Block { range, kind: BlockKind::Other, table_rows: Vec::new() }),
             _ => {}
         }
     }
 
     // Trailing newlines are not part of a block's text: quotes stay stable across files
     // that differ only in final-newline conventions.
+    let trim = |range: &mut Range<usize>| {
+        let trimmed = source[range.clone()].trim_end_matches(['\n', '\r']);
+        range.end = range.start + trimmed.len();
+    };
     for block in &mut blocks {
-        let text = &source[block.range.clone()];
-        let trimmed = text.trim_end_matches(['\n', '\r']);
-        block.range.end = block.range.start + trimmed.len();
+        trim(&mut block.range);
+        block.table_rows.iter_mut().for_each(trim);
     }
     blocks.retain(|b| !b.range.is_empty() && b.kind != BlockKind::Metadata);
     blocks
@@ -151,6 +167,15 @@ mod tests {
         assert_eq!(doc.block_text(0), "# Title");
         assert_eq!(doc.block_text(1), "Para one\nstill one.");
         assert_eq!(doc.block_text(3), "```rs\nfn x() {}\n```");
+    }
+
+    #[test]
+    fn a_table_records_its_header_and_each_body_row() {
+        let doc =
+            Document::parse("| Name | Age |\n|---|---|\n| Ann | 30 |\n| Bob | 41 |\n\nafter\n".to_owned());
+        let rows: Vec<_> = doc.table_rows(0).iter().filter_map(|r| doc.source.get(r.clone())).collect();
+        assert_eq!(rows, ["| Name | Age |", "| Ann | 30 |", "| Bob | 41 |"]);
+        assert!(doc.table_rows(1).is_empty(), "only tables have rows");
     }
 
     #[test]

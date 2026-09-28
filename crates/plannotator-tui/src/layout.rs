@@ -146,6 +146,16 @@ impl DocLayout {
             .map(|i| b.first_row + i)
     }
 
+    /// Document rows of `block` on which any cell falls inside `range`; empty when none do.
+    pub(crate) fn rows_in_range(&self, block: usize, range: &Range<usize>) -> Range<usize> {
+        let Some(b) = self.blocks.get(block) else { return 0..0 };
+        let hits = |r: &Row| r.cells.iter().any(|c| c.is_some_and(|o| range.contains(&o)));
+        match (b.rows.iter().position(hits), b.rows.iter().rposition(hits)) {
+            (Some(first), Some(last)) => b.first_row + first..b.first_row + last + 1,
+            _ => 0..0,
+        }
+    }
+
     /// The rendered text under a source range, in the web client's form: rendered
     /// characters whose source offset falls in `range`, blocks joined with no separator.
     ///

@@ -149,6 +149,16 @@ impl App {
         frame.render_widget(Paragraph::new(lines), inner);
     }
 
+    /// The footer's `block N/M`, with `· row r/R` on a table row.
+    fn position_status(&self) -> String {
+        let block = format!("block {}/{}", self.selected + 1, self.open.doc.blocks.len());
+        let rows = self.open.doc.table_rows(self.selected).len();
+        match self.selected_table_row() {
+            Some((row, _)) => format!("{block} · row {}/{rows}", row + 1),
+            None => block,
+        }
+    }
+
     fn draw_document(&self, frame: &mut Frame, gutter: Rect, doc: Rect) {
         let placed = self.open.store.placed();
         // The open thread's passage.
@@ -158,6 +168,7 @@ impl App {
         };
         let text_selection_active = self.selection.is_some();
         let doc_focused = self.focus == Focus::Document;
+        let selected_rows = self.selected_rows();
         let buf = frame.buffer_mut();
 
         for y in 0..doc.height {
@@ -167,7 +178,11 @@ impl App {
             let screen_y = doc.y + y;
             buf.set_line(doc.x, screen_y, &row.line, doc.width);
 
-            if block == self.selected && !text_selection_active && self.pending.is_none() && doc_focused {
+            if selected_rows.contains(&row_index)
+                && !text_selection_active
+                && self.pending.is_none()
+                && doc_focused
+            {
                 buf.set_style(
                     Rect { x: doc.x, y: screen_y, width: doc.width, height: 1 },
                     Style::new().bg(palette().block_bg),
@@ -376,7 +391,7 @@ impl App {
                     let chars = self.open.doc.source.get(p.range.clone()).map_or(0, |s| s.chars().count());
                     format!("selected {chars} chars")
                 }
-                None => format!("block {}/{}", self.selected + 1, self.open.doc.blocks.len()),
+                None => self.position_status(),
             },
         ]);
         if frame.area().width < RAIL_MIN_TOTAL_WIDTH {

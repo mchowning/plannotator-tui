@@ -28,9 +28,8 @@ impl App {
         self.compose = Compose::default();
         self.panel_back = 0;
         let start = self.rail().iter().find(|e| e.annotation.id == id).and_then(|e| e.range.map(|r| r.start));
-        if let Some(block) = start.and_then(|s| self.open.doc.block_containing(s)) {
-            self.selected = block;
-            self.ensure_selected_visible();
+        if let Some(start) = start {
+            self.select_offset(start);
         }
         self.mode = Mode::Thread(id);
     }

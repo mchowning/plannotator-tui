@@ -194,12 +194,8 @@ impl App {
             KeyCode::Esc => self.focus = Focus::Document,
             _ => {}
         }
-        let start = self.rail().get(self.rail_cursor).and_then(|e| e.range.map(|r| r.start));
-        if let Some(start) = start
-            && let Some(block) = self.open.doc.block_containing(start)
-        {
-            self.selected = block;
-            self.ensure_selected_visible();
+        if let Some(start) = self.rail().get(self.rail_cursor).and_then(|e| e.range.map(|r| r.start)) {
+            self.select_offset(start);
         }
     }
 
@@ -249,8 +245,8 @@ impl App {
                 self.status = Some("visual line: j/k to extend, enter to select, esc to cancel".into());
             }
             (KeyCode::Char('i'), _) => self.start_roaming(),
-            (KeyCode::Char('j') | KeyCode::Down, _) => self.select_block(self.selected + 1),
-            (KeyCode::Char('k') | KeyCode::Up, _) => self.select_block(self.selected.saturating_sub(1)),
+            (KeyCode::Char('j') | KeyCode::Down, _) => self.step(1),
+            (KeyCode::Char('k') | KeyCode::Up, _) => self.step(-1),
             // A cursor that moves must be visible, so a column move in block mode is a
             // roaming move: the same key, with the cursor drawn.
             (KeyCode::Char('h' | 'l') | KeyCode::Left | KeyCode::Right, _) => {
@@ -264,11 +260,13 @@ impl App {
                 self.select_block(self.open.doc.blocks.len().saturating_sub(1));
             }
             (KeyCode::Char('c') | KeyCode::Enter, _) => {
-                // No selection: comment on the whole selected block.
-                if let (Some(block), Some(rendered)) =
-                    (self.open.doc.blocks.get(self.selected), self.open.layout.blocks.get(self.selected))
-                {
-                    self.pending = Some(Pending { range: block.range.clone(), at: (rendered.first_row, 0) });
+                // No selection: comment on the selected table row, else the whole block.
+                let range = match self.selected_table_row() {
+                    Some((_, range)) => Some(range),
+                    None => self.open.doc.blocks.get(self.selected).map(|b| b.range.clone()),
+                };
+                if let Some(range) = range {
+                    self.pending = Some(Pending { range, at: (self.selected_rows().start, 0) });
                     self.act(Kind::Comment)?;
                 }
             }
