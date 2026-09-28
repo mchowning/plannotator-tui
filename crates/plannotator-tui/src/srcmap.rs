@@ -14,12 +14,29 @@ pub(crate) type LineOffsets = Vec<Option<usize>>;
 /// Align `rendered_lines` (plain text, one entry per line) against `source`, whose first
 /// byte sits at absolute offset `base`.
 pub(crate) fn align(rendered_lines: &[String], source: &str, base: usize) -> Vec<LineOffsets> {
+    align_with(Algorithm::Myers, rendered_lines, source, base)
+}
+
+/// `align` with an exact shortest-edit search, for blocks the fast one gets wrong. A table's
+/// box is mostly padding and border, and `similar`'s `Myers` settles for a non-minimal split
+/// there, leaving whole rows unmapped or mapped to another row. Exact is about four times
+/// slower, so it is kept to the blocks that need it.
+pub(crate) fn align_exact(rendered_lines: &[String], source: &str, base: usize) -> Vec<LineOffsets> {
+    align_with(Algorithm::RawMyers, rendered_lines, source, base)
+}
+
+fn align_with(
+    algorithm: Algorithm,
+    rendered_lines: &[String],
+    source: &str,
+    base: usize,
+) -> Vec<LineOffsets> {
     let rendered: Vec<char> = rendered_lines.join("\n").chars().collect();
     let (src_chars, src_bytes): (Vec<char>, Vec<usize>) =
         source.char_indices().map(|(i, c)| (c, base + i)).unzip();
 
     let mut flat: Vec<Option<usize>> = vec![None; rendered.len()];
-    for op in capture_diff_slices(Algorithm::Myers, &rendered, &src_chars) {
+    for op in capture_diff_slices(algorithm, &rendered, &src_chars) {
         if let DiffOp::Equal { old_index, new_index, len } = op {
             let targets = flat.iter_mut().skip(old_index).take(len);
             let sources = src_bytes.iter().skip(new_index);

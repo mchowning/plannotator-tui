@@ -11,7 +11,7 @@ use ratatui::text::{Line, Text};
 use tui_markdown::{Options, StyleSheet};
 
 use crate::doc::{BlockKind, Document};
-use crate::srcmap::{LineOffsets, align};
+use crate::srcmap::{LineOffsets, align, align_exact};
 use crate::wrap::{Row, clip_line, wrap_line, wrap_table};
 
 /// Rows of vertical space between blocks.
@@ -68,8 +68,12 @@ fn render_block(doc: &Document, index: usize) -> (Text<'static>, Vec<LineOffsets
     let source = doc.block_text(index);
     let text = own(tui_markdown::from_str_with_options(source, &Options::new(Styles)));
     let plain: Vec<String> = text.lines.iter().map(ToString::to_string).collect();
-    let base = doc.blocks.get(index).map_or(0, |b| b.range.start);
-    let offsets = align(&plain, source, base);
+    let block = doc.blocks.get(index);
+    let base = block.map_or(0, |b| b.range.start);
+    let offsets = match block.map(|b| b.kind) {
+        Some(BlockKind::Table) => align_exact(&plain, source, base),
+        _ => align(&plain, source, base),
+    };
     (text, offsets)
 }
 
@@ -203,4 +207,32 @@ mod tests {
         let bold_range = bold..bold + "**login page**".len();
         assert_eq!(layout.rendered_in_range(&doc.source, &bold_range), "login page");
     }
+
+    #[test]
+    fn every_row_of_a_wide_table_maps_back_to_its_own_source_row() {
+        // Long rows with concealed backticks: most of the rendered box is padding and
+        // border, which a heuristic diff lines up with the wrong row or none.
+        let doc = Document::parse(TABLE.to_owned());
+        let layout = DocLayout::build(&doc, 100);
+        let unmapped: Vec<&str> = doc
+            .table_rows(0)
+            .iter()
+            .filter(|row| layout.rows_in_range(0, row).is_empty())
+            .filter_map(|row| doc.source.get(row.clone()))
+            .collect();
+        assert!(unmapped.is_empty(), "rows with no screen row: {unmapped:#?}");
+    }
+
+    const TABLE: &str = r"
+| Where | Keys |
+|---|---|
+| anywhere | `Tab` cycle focus (tree · document · rail) · `E` send feedback (clipboard) · `t` show/hide tree · `r` reload · `q` quit |
+| document | drag with the mouse, or `v` then `hjkl` / `w` `b` / `0` `$` to select; `Enter` confirms · `i` moves the cursor with those keys first, so `v` can start mid-block · `j`/`k` or click selects a block · `c` comments on the block · `x` clears the block's annotations · wide Markdown tables wrap by cell |
+| selection toolbar | `a` 👍 looks good · `c` 💬 comment (opens a box at the selection) · `d` ✗ delete · `Esc` clears |
+| rail | `j`/`k` move · `e` / `Enter` edit body · `x` remove · click a bubble to focus it |
+| reply review | `S` send feedback and quit; stays open if the agent is at a dialog |
+| file/folder review | `E` send new · `m` review menu (`R` resend all · `F` finish review · `U` undo · `H` archive) |
+| tree | `j`/`k` move · `Enter` open · `.` show/hide hidden (dot-prefixed) entries · `E` send new feedback across files, including collapsed folders · counts show active notes per file |
+| archive | `j`/`k` or ↑/↓ select · `Enter` or click restore · `Esc` close |
+";
 }
