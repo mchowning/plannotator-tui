@@ -213,6 +213,7 @@ pub(crate) struct App {
     panel_back: usize,
     /// First key list line drawn.
     keys_scroll: usize,
+    keys_filter: keys::KeyFilter,
     /// Copy selections to the terminal clipboard (off for headless runs).
     pub(crate) clipboard: bool,
     pub(crate) quit: bool,
@@ -283,6 +284,7 @@ impl App {
             record_poll: poll::RecordPoll::default(),
             panel_back: 0,
             keys_scroll: 0,
+            keys_filter: keys::KeyFilter::default(),
             clipboard: false,
             quit: false,
         })

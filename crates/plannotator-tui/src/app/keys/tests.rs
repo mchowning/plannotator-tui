@@ -215,6 +215,93 @@ fn a_list_taller_than_the_screen_scrolls_with_j_k_and_the_wheel() {
     assert_eq!(app.mode, Mode::Keys);
 }
 
+// ----- `/` filters the list -------------------------------------------------------------
+
+#[test]
+fn slash_keeps_only_rows_whose_key_or_description_matches_and_their_headings() {
+    let (_root, mut app, _) = file_app("filter-match");
+    press(&mut app, '?');
+    press(&mut app, '/');
+    type_text(&mut app, "quit");
+    assert_eq!(app.mode, Mode::Keys, "q is text while filtering");
+    assert!(!app.quit, "q quit from the filter");
+    for _ in 0..4 {
+        key(&mut app, KeyCode::Backspace);
+    }
+    type_text(&mut app, "RELOAD");
+    let rows = popup(&mut app, 160, 120);
+    assert_eq!(rows, vec!["Anywhere", "r               reload the file"], "{rows:#?}");
+
+    for _ in 0..6 {
+        key(&mut app, KeyCode::Backspace);
+    }
+    type_text(&mut app, "ctrl-d");
+    let rows = popup(&mut app, 160, 120);
+    assert_eq!(rows.first().map(String::as_str), Some("Document"), "{rows:#?}");
+    assert!(has_row(&rows, "ctrl-d/ctrl-u") && rows.len() == 2, "{rows:#?}");
+}
+
+#[test]
+fn a_filter_that_matches_nothing_says_so() {
+    let (_root, mut app, _) = file_app("filter-none");
+    press(&mut app, '?');
+    press(&mut app, '/');
+    type_text(&mut app, "zzz");
+    assert_eq!(popup(&mut app, 160, 120), vec!["no keys match"]);
+}
+
+#[test]
+fn the_bottom_border_shows_what_is_typed_and_offers_slash_when_not_filtering() {
+    let (_root, mut app, _) = file_app("filter-border");
+    press(&mut app, '?');
+    assert!(draw(&mut app, 160, 120).contains("/ filter"), "the list offers / to filter");
+    press(&mut app, '/');
+    type_text(&mut app, "note");
+    let screen = draw(&mut app, 160, 120);
+    assert!(screen.contains("/note") && screen.contains("enter keep"), "{screen}");
+}
+
+#[test]
+fn enter_keeps_the_filter_and_esc_clears_it_before_closing() {
+    let (_root, mut app, _) = file_app("filter-keep");
+    press(&mut app, '?');
+    let unfiltered = popup(&mut app, 160, 120);
+    press(&mut app, '/');
+    type_text(&mut app, "reload");
+    key(&mut app, KeyCode::Enter);
+    let kept = popup(&mut app, 160, 120);
+    assert_eq!(kept.len(), 2, "{kept:#?}");
+    press(&mut app, 'q');
+    assert_eq!(popup(&mut app, 160, 120), kept, "after enter, letters are no longer typed");
+    assert!(!app.quit, "q quit from under the list");
+
+    key(&mut app, KeyCode::Esc);
+    assert_eq!(app.mode, Mode::Keys, "the first esc clears the filter");
+    assert_eq!(popup(&mut app, 160, 120), unfiltered);
+    key(&mut app, KeyCode::Esc);
+    assert_eq!(app.mode, Mode::Browse);
+}
+
+#[test]
+fn esc_while_typing_drops_the_filter_and_reopening_starts_unfiltered() {
+    let (_root, mut app, _) = file_app("filter-drop");
+    press(&mut app, '?');
+    let unfiltered = popup(&mut app, 160, 120);
+    press(&mut app, '/');
+    type_text(&mut app, "quit");
+    key(&mut app, KeyCode::Esc);
+    assert_eq!(app.mode, Mode::Keys);
+    assert_eq!(popup(&mut app, 160, 120), unfiltered);
+
+    press(&mut app, '/');
+    type_text(&mut app, "quit");
+    key(&mut app, KeyCode::Enter);
+    press(&mut app, '?');
+    assert_eq!(app.mode, Mode::Browse);
+    press(&mut app, '?');
+    assert_eq!(popup(&mut app, 160, 120), unfiltered, "a new list starts unfiltered");
+}
+
 // ----- `?` is text where text is typed (R19) --------------------------------------------
 
 #[test]

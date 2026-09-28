@@ -1,10 +1,10 @@
 //! The key list: `?` opens a popup of the keys that act in this review, grouped by where
 //! they are used, the focused pane's group first. Also the key help's pointer to it and
-//! the rail's thread hint. Drawn and dismissed like the review menu.
+//! the rail's thread hint. Drawn and dismissed like the review menu. `/` filters it.
 
 use plannotator_tui_schema::{Kind, Turn};
 use ratatui::Frame;
-use ratatui::crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::text::{Line, Span};
@@ -13,8 +13,11 @@ use unicode_width::UnicodeWidthStr as _;
 
 use super::{App, Focus, Mode};
 
+mod filter;
 #[cfg(test)]
 mod tests;
+
+pub(super) use filter::KeyFilter;
 
 /// Where a key is used; one heading each in the list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -127,7 +130,9 @@ const KEY_LIST: &[(Group, &str, &str, When)] = &[
 
 /// Width of the key column, gap included.
 const KEY_COLUMN: usize = 16;
-const KEYS_HELP: &str = " j/k scroll \u{b7} ? or esc close ";
+const KEYS_HELP: &str = " j/k scroll \u{b7} / filter \u{b7} ? or esc close ";
+const NO_MATCH: &str = "no keys match";
+
 /// The key help's pointer to this list.
 const POINTER: &str = "? keys \u{b7} ";
 
@@ -149,8 +154,9 @@ impl App {
         }
     }
 
-    /// The list's lines: each group that has a key here, the focused pane's first.
-    fn key_list_lines(&self) -> Vec<Line<'static>> {
+    /// The list's lines: each group that has a key here and in `filter`, the focused
+    /// pane's first.
+    fn key_list_lines(&self, filter: &KeyFilter) -> Vec<Line<'static>> {
         let focused = match self.focus {
             Focus::Document => Group::Document,
             Focus::Rail => Group::Rail,
@@ -161,7 +167,9 @@ impl App {
             .map(|group| {
                 let rows = KEY_LIST
                     .iter()
-                    .filter(|(g, _, _, when)| *g == group && self.applies(*when))
+                    .filter(|(g, keys, does, when)| {
+                        *g == group && self.applies(*when) && filter.keeps(keys, does)
+                    })
                     .map(|(_, keys, does, _)| Line::from(format!("{keys:<KEY_COLUMN$}{does}")));
                 std::iter::once(Line::from(Span::raw(group.heading()).bold().fg(Color::Cyan)))
                     .chain(rows)
@@ -175,6 +183,7 @@ impl App {
 
     pub(super) fn open_key_list(&mut self) {
         self.keys_scroll = 0;
+        self.keys_filter = KeyFilter::default();
         self.mode = Mode::Keys;
     }
 
@@ -183,9 +192,35 @@ impl App {
         self.keys_scroll = (self.keys_scroll as i64 + delta).clamp(0, max as i64) as usize;
     }
 
-    /// `?` and `Esc` close; `j`/`k` scroll; every other key does nothing.
-    pub(super) fn keys_key(&mut self, key: KeyEvent) {
+    /// While typing a filter, keys are its text; `Enter` keeps it and `Esc` drops it.
+    fn filter_key(&mut self, key: KeyEvent) {
         match key.code {
+            KeyCode::Enter => self.keys_filter.typing = false,
+            KeyCode::Esc => self.keys_filter = KeyFilter::default(),
+            KeyCode::Backspace => {
+                self.keys_filter.text.pop();
+                self.keys_scroll = 0;
+            }
+            KeyCode::Char(c) if !key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) => {
+                self.keys_filter.text.push(c);
+                self.keys_scroll = 0;
+            }
+            _ => {}
+        }
+    }
+
+    /// `/` starts a filter; `Esc` clears a kept one, else it and `?` close; `j`/`k`
+    /// scroll; every other key does nothing.
+    pub(super) fn keys_key(&mut self, key: KeyEvent) {
+        if self.keys_filter.typing {
+            return self.filter_key(key);
+        }
+        match key.code {
+            KeyCode::Char('/') => self.keys_filter.typing = true,
+            KeyCode::Esc if !self.keys_filter.text.is_empty() => {
+                self.keys_filter = KeyFilter::default();
+                self.keys_scroll = 0;
+            }
             KeyCode::Char('?') | KeyCode::Esc => self.mode = Mode::Browse,
             KeyCode::Char('j') | KeyCode::Down => self.scroll_key_list(1),
             KeyCode::Char('k') | KeyCode::Up => self.scroll_key_list(-1),
@@ -215,8 +250,14 @@ impl App {
 
     pub(super) fn draw_key_list(&mut self, frame: &mut Frame) {
         let area = frame.area();
-        let lines = self.key_list_lines();
-        let content = lines.iter().map(Line::width).max().unwrap_or(0).max(KEYS_HELP.width());
+        // Sized from the whole list so the box keeps its width while a filter is typed.
+        let content = self.key_list_lines(&KeyFilter::default()).iter().map(Line::width).max().unwrap_or(0);
+        let help = self.keys_filter.help();
+        let content = content.max(help.width());
+        let lines = match self.key_list_lines(&self.keys_filter) {
+            lines if lines.is_empty() => vec![Line::from(Span::raw(NO_MATCH).dim())],
+            lines => lines,
+        };
         let width = (content as u16 + 4).min(area.width);
         let height = (lines.len() as u16 + 2).min(area.height);
         let rect = Rect {
@@ -231,7 +272,7 @@ impl App {
             .border_type(BorderType::Rounded)
             .border_style(Style::new().fg(Color::Cyan))
             .title(Span::styled(" keys ", Style::new().dim()))
-            .title_bottom(Span::styled(KEYS_HELP, Style::new().dim()));
+            .title_bottom(Span::styled(help, Style::new().dim()));
         let inner = boxed.inner(rect);
         frame.render_widget(boxed, rect);
         let max_scroll = lines.len().saturating_sub(usize::from(inner.height));
