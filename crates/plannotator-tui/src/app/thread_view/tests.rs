@@ -223,7 +223,7 @@ fn the_panel_title_fits_and_the_footer_names_the_panel_keys() {
     let screen = draw(&mut app, 160, 45);
     assert!(screen.contains(" thread · esc closes "), "{screen}");
     let footer = screen.lines().last().expect("footer");
-    assert!(footer.contains("enter reply · ctrl-r retry · pgup/pgdn scroll · esc close"), "{footer}");
+    assert!(footer.contains("enter reply · ctrl-n note · ctrl-r retry · pgup/pgdn scroll"), "{footer}");
 }
 
 #[test]
@@ -244,7 +244,11 @@ fn ctrl_n_in_the_panel_saves_a_note_for_the_main_agent_that_the_fork_is_not_aske
     assert!(!thread.thread.needs_turn(thread.annotation), "the fork is not asked");
     assert!(app.compose.value().is_empty(), "the input is cleared");
     let screen = draw(&mut app, 160, 45);
-    assert!(screen.contains("you → main agent"), "{screen}");
+    let author_row = |l: &str| l.split('│').any(|cell| cell.trim() == "note");
+    assert!(screen.lines().any(author_row), "the note is headed `note`\n{screen}");
+    key(&mut app, KeyCode::Esc);
+    let screen = draw(&mut app, 160, 45);
+    assert!(screen.contains("note: Rename it later"), "the rail preview says `note:`\n{screen}");
 }
 
 #[test]

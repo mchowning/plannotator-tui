@@ -514,7 +514,7 @@ fn the_thread_panels_key_help_is_unchanged() {
     ctrl_r(&mut app);
     app.status = None;
     assert!(
-        footer(&mut app, 160).ends_with(" enter reply · ctrl-r retry · pgup/pgdn scroll · esc close"),
+        footer(&mut app, 160).ends_with(" enter reply · ctrl-n note · ctrl-r retry · pgup/pgdn scroll"),
         "{:?}",
         footer(&mut app, 160)
     );

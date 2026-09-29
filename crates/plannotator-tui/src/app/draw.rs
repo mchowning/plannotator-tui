@@ -413,7 +413,7 @@ impl App {
         let pointed = |help: String| super::keys::with_pointer(help, available);
         let help = match self.focus {
             _ if matches!(self.mode, Mode::Thread(_)) => {
-                "enter reply · ctrl-r retry · pgup/pgdn scroll · esc close ".to_owned()
+                "enter reply · ctrl-n note · ctrl-r retry · pgup/pgdn scroll ".to_owned()
             }
             _ if self.pending.is_some() => "a looks good · c comment · d delete · esc clear ".to_owned(),
             Focus::Tree => pointed("j/k · enter open · . hidden · E send · t hide · q quit ".to_owned()),

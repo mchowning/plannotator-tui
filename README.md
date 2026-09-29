@@ -178,7 +178,7 @@ background, several at once. Its box shows the latest message, `working…` whil
 and a status line when one fails or is interrupted. `Enter` opens the thread in a panel beside
 the document, with the passage highlighted and a reply box. Replies land in the record, and the
 review picks up the answers on its own within a second. `Ctrl-N` in the box saves it as a note
-for the main agent instead: the thread's copy does not answer it, it shows as `you → main agent`,
+for the main agent instead: the thread's copy does not answer it, it shows as `note`,
 and the next send carries it with the thread. A note does not unresolve a thread.
 
 `Ctrl-O` on a thread in the notes, or in its panel, marks it resolved: its box dims, says

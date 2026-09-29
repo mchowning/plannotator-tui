@@ -144,7 +144,7 @@ impl App {
             let (who, color) = match message.author {
                 Author::User => ("you", Color::Yellow),
                 Author::Agent => ("agent", Color::Cyan),
-                Author::Note => ("you → main agent", Color::Magenta),
+                Author::Note => ("note", Color::Magenta),
             };
             lines.push(Line::from(Span::raw(who).bold().fg(color)));
             lines.extend(wrap(message.body, Style::new()));
