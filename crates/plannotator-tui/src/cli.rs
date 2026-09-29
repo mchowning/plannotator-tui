@@ -31,7 +31,7 @@ pub(crate) const USAGE: &str = "usage:
   plannotator-tui --annotate <file.md> <quote> <text> [comment|looks_good|delete] [--occurrence N]
   plannotator-tui --annotate-block <file.md> <block> <text>
   plannotator-tui --snapshot <file.md> [cols rows scroll] [select-quote] [menu]
-  plannotator-tui config
+  plannotator-tui config [--json]
   plannotator-tui --version
   plannotator-tui herdr open [file.md | folder] [--placement overlay|split|popup] [--deliver-to <pane>]
   plannotator-tui herdr last [--placement P] [--deliver-to <pane>] [--newest]
@@ -165,7 +165,7 @@ pub(crate) fn run(args: &[String]) -> Result<()> {
             println!("plannotator-tui {}", env!("CARGO_PKG_VERSION"));
             Ok(())
         }
-        Some("config") => show_config(),
+        Some("config") => show_config(args.get(1).is_some_and(|a| a == "--json")),
         Some("herdr") => herdr_command(args.get(1..).unwrap_or_default()),
         Some("last") => last_command(args.get(1..).unwrap_or_default()),
         Some("thread") => {
@@ -178,13 +178,18 @@ pub(crate) fn run(args: &[String]) -> Result<()> {
     }
 }
 
-/// `plannotator-tui config`: where the file is and what is in effect.
-fn show_config() -> Result<()> {
+/// `plannotator-tui config`: where the file is and what is in effect. `--json` prints the
+/// effective config alone, for the pi thread runner.
+fn show_config(json: bool) -> Result<()> {
     let home = std::env::home_dir().unwrap_or_else(|| PathBuf::from("/"));
     let path = crate::config::config_path(|k| std::env::var(k).ok(), &home);
     let mut config = Config::load_from(&path)?;
     // `PLANNOTATOR_TUI_THEME` overrides the file, so the file's value is not the effective one.
     config.ui.theme = crate::theme::effective_setting(|key| std::env::var(key).ok(), config.ui.theme)?;
+    if json {
+        println!("{}", config.to_json()?);
+        return Ok(());
+    }
     let state = if path.is_file() { "" } else { " (not present; defaults)" };
     println!("# {}{state}", path.display());
     print!("{}", config.to_toml()?);

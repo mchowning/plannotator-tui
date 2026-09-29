@@ -18,6 +18,26 @@ use crate::theme::ThemeSetting;
 pub(crate) struct Config {
     pub(crate) herdr: HerdrConfig,
     pub(crate) ui: UiConfig,
+    pub(crate) threads: ThreadsConfig,
+}
+
+/// How review threads are answered. The pi thread runner reads this through
+/// `plannotator-tui config --json`; this app only stores it.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub(crate) struct ThreadsConfig {
+    pub(crate) context: ThreadContext,
+}
+
+/// What a new thread's agent session starts from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum ThreadContext {
+    /// A copy of the main session's history, so the thread knows the conversation.
+    #[default]
+    Fork,
+    /// An empty session that sees only the passage, the document and the comment.
+    Fresh,
 }
 
 /// How the app looks. One key so far; the colours themselves are not configurable yet.
@@ -153,6 +173,11 @@ impl Config {
     pub(crate) fn to_toml(&self) -> Result<String> {
         Ok(toml::to_string(self)?)
     }
+
+    /// The effective config as JSON, for `plannotator-tui config --json`.
+    pub(crate) fn to_json(&self) -> Result<String> {
+        Ok(serde_json::to_string(self)?)
+    }
 }
 
 #[cfg(test)]
@@ -242,6 +267,19 @@ mod tests {
     fn an_unknown_theme_error_names_the_value() {
         let err = Config::parse("[ui]\ntheme = \"solarized\"\n").expect_err("rejected");
         assert!(err.to_string().contains("solarized"), "{err}");
+    }
+
+    #[test]
+    fn a_thread_starts_as_a_fork_of_main_unless_the_config_says_fresh() {
+        assert_eq!(Config::parse("").expect("parses").threads.context, ThreadContext::Fork);
+        let config = Config::parse("[threads]\ncontext = \"fresh\"\n").expect("parses");
+        assert_eq!(config.threads.context, ThreadContext::Fresh);
+    }
+
+    #[test]
+    fn an_unknown_thread_context_error_names_the_value() {
+        let err = Config::parse("[threads]\ncontext = \"clone\"\n").expect_err("rejected");
+        assert!(err.to_string().contains("clone"), "{err}");
     }
 
     #[test]

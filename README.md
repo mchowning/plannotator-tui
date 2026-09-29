@@ -198,6 +198,18 @@ answer before reviewing it. A thread in a reply review is told the file is a cop
 and not to edit it. Outside pi, for folders, for `/plannotator-last-tui recover`, and for the
 in-app `plannotator-tui last` view, `Ctrl-R` says `no agent session attached`.
 
+By default each thread's session is a fork: a copy of the main session's history, so it knows
+the conversation. Set it to start empty instead, with only the passage, the file and the comment:
+
+```toml
+[threads]
+context = "fork"   # fork (copy main's history, default) | fresh (empty session)
+```
+
+The pi runner reads this through `plannotator-tui config --json` when a thread's session
+starts, so a change applies to new threads without restarting pi. A thread that already has a
+session keeps it.
+
 ## Where annotations live
 
 ```
