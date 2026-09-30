@@ -178,3 +178,50 @@ fn tab_goes_to_the_nearest_note_above_or_below_when_the_block_has_none() {
 fn tab_between_two_equally_near_notes_goes_to_the_one_below() {
     assert_eq!(tab_lands_on("tab-tie", &["one", "three"], 2), "three");
 }
+
+#[test]
+fn right_arrow_in_block_mode_goes_to_the_note_on_the_selected_block() {
+    let (_root, mut app, _) = file_app("right-to-rail");
+    for quote in ["one", "three"] {
+        app.add_quote_annotation(quote, Kind::Comment, quote.into()).expect("comment");
+    }
+    rail_text(&mut app);
+    (0..3).for_each(|_| press(&mut app, 'j'));
+    app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Right))).expect("right");
+    assert_eq!(app.focus, Focus::Rail);
+    assert!(!app.roam, "the arrow switches panes instead of starting the cursor");
+    assert_eq!(app.rail()[app.rail_cursor].annotation.body, "three");
+}
+
+#[test]
+fn right_arrow_with_no_notes_stays_on_the_block() {
+    let (_root, mut app, _) = file_app("right-no-notes");
+    rail_text(&mut app);
+    let cursor = app.cursor;
+    app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Right))).expect("right");
+    assert_eq!(app.focus, Focus::Document);
+    assert!(!app.roam);
+    assert_eq!(app.cursor, cursor);
+}
+
+#[test]
+fn left_arrow_in_block_mode_does_nothing() {
+    let (_root, mut app, _) = file_app("left-noop");
+    rail_text(&mut app);
+    let cursor = app.cursor;
+    app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Left))).expect("left");
+    assert_eq!(app.focus, Focus::Document);
+    assert!(!app.roam);
+    assert_eq!(app.cursor, cursor);
+}
+
+#[test]
+fn left_arrow_on_the_rail_goes_back_to_the_document() {
+    let (_root, mut app, _) = file_app("left-to-doc");
+    app.add_quote_annotation("two", Kind::Comment, "Why two?".into()).expect("comment");
+    rail_text(&mut app);
+    app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Tab))).expect("tab");
+    assert_eq!(app.focus, Focus::Rail);
+    app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Left))).expect("left");
+    assert_eq!(app.focus, Focus::Document);
+}

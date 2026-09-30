@@ -149,20 +149,20 @@ impl App {
     fn cycle_focus(&mut self) {
         let has_tree = self.tree.is_some();
         let has_rail = !self.rail().is_empty();
-        if self.focus == Focus::Document
-            && has_rail
-            && let Some(nearest) = self.nearest_rail_card()
-        {
+        match self.focus {
+            Focus::Document if has_rail => self.focus_rail(),
+            Focus::Document | Focus::Rail if has_tree => self.focus = Focus::Tree,
+            Focus::Tree | Focus::Document | Focus::Rail => self.focus = Focus::Document,
+        }
+    }
+
+    /// Move to the rail, on the note nearest the selected block.
+    fn focus_rail(&mut self) {
+        if let Some(nearest) = self.nearest_rail_card() {
             self.rail_cursor = nearest;
         }
-        self.focus = match self.focus {
-            Focus::Document if has_rail => Focus::Rail,
-            Focus::Document | Focus::Rail if has_tree => Focus::Tree,
-            Focus::Tree | Focus::Document | Focus::Rail => Focus::Document,
-        };
-        if self.focus == Focus::Rail {
-            self.select_rail_card_passage();
-        }
+        self.focus = Focus::Rail;
+        self.select_rail_card_passage();
     }
 
     fn tree_key(&mut self, key: KeyEvent) -> Result<()> {
@@ -200,7 +200,7 @@ impl App {
             },
             KeyCode::Char('e') => self.edit_selected_annotation(),
             KeyCode::Char('x') | KeyCode::Delete => self.ask_remove_selected_note(),
-            KeyCode::Esc => self.focus = Focus::Document,
+            KeyCode::Esc | KeyCode::Left => self.focus = Focus::Document,
             _ => {}
         }
         self.select_rail_card_passage();
@@ -261,9 +261,11 @@ impl App {
             (KeyCode::Char('i'), _) => self.start_roaming(),
             (KeyCode::Char('j') | KeyCode::Down, _) => self.step(1),
             (KeyCode::Char('k') | KeyCode::Up, _) => self.step(-1),
+            // In block mode the arrows are for panes, not the cursor; left has none to go to.
+            (KeyCode::Right, _) if !self.rail().is_empty() => self.focus_rail(),
             // A cursor that moves must be visible, so a column move in block mode is a
             // roaming move: the same key, with the cursor drawn.
-            (KeyCode::Char('h' | 'l') | KeyCode::Left | KeyCode::Right, _) => {
+            (KeyCode::Char('h' | 'l'), _) => {
                 self.start_roaming();
                 self.motion_key(key);
             }

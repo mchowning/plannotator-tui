@@ -82,9 +82,9 @@ dimmed. The keys also work without opening the menu.
 |---|---|
 | anywhere | `?` list the keys that work in this review (`/` filters it); `Tab` cycle tree · document · notes, landing on the note nearest the selection; `E` send; `t` tree; `r` reload; `q` quit |
 | reply review | `S` send and close |
-| document | `j`/`k` block, or row in a table, or item in a list; `c` comment on the block, row or item (double-click for a whole table or list); `x` clear its annotations (a row's or item's alone); `v` select with `hjkl` `w` `b` `0` `$`; `V` select whole rows; `i` move the cursor with those keys first, then `v` to select from there |
+| document | `j`/`k` block, or row in a table, or item in a list; `c` comment on the block, row or item (double-click for a whole table or list); `x` clear its annotations (a row's or item's alone); `v` select with `hjkl` `w` `b` `0` `$`; `V` select whole rows; `i` move the cursor with those keys first, then `v` to select from there; `→` notes |
 | toolbar | `a` looks good · `c` comment · `d` delete · `Esc` |
-| notes | `j`/`k`; `e` edit; `x` remove (asks first; so does `x` on a block); click a bubble; `Enter` edits a comment or opens a thread |
+| notes | `j`/`k`; `←` or `Esc` document; `e` edit; `x` remove (asks first; so does `x` on a block); click a bubble; `Enter` edits a comment or opens a thread |
 | comment input (attached) | `Enter` saves a comment · `Ctrl-R` saves it as a thread |
 | notes (attached) | `Ctrl-R` makes a comment a thread, or retries a failed or interrupted turn · `Ctrl-O` resolves or unresolves a thread |
 | thread panel | type, `Enter` reply · `Ctrl-N` note for the main agent · `Ctrl-R` retry · `Ctrl-O` resolve or unresolve · `PgUp`/`PgDn` or the wheel scroll · `Esc` close |
