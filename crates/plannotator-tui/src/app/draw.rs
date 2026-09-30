@@ -42,8 +42,9 @@ fn priority(kind: Kind) -> u8 {
 impl App {
     pub(crate) fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
-        let [header, body, footer] = Layout::vertical([
+        let [header, focus_row, body, footer] = Layout::vertical([
             Constraint::Length(self.header_height(area.width)),
+            Constraint::Length(1),
             Constraint::Min(1),
             Constraint::Length(1),
         ])
@@ -82,19 +83,20 @@ impl App {
             self.draw_tree(frame, tree);
         }
         self.draw_document(frame, gutter, doc);
-        // The pane without focus is dimmed, so it is plain which one the keys go to.
-        let dim = Style::new().add_modifier(Modifier::DIM);
-        if self.focus != Focus::Document {
-            frame.buffer_mut().set_style(gutter.union(doc), dim);
-        }
         if panel_open {
             self.draw_thread_panel(frame, rail);
         } else if rail_width > 0 {
             self.draw_rail(frame, rail);
-            if self.focus != Focus::Rail {
-                frame.buffer_mut().set_style(rail, dim);
-            }
         }
+        // A bar over the pane the keys go to. The open thread panel takes the keys.
+        let focused = match self.focus {
+            _ if panel_open => rail,
+            Focus::Tree => tree,
+            Focus::Document => gutter.union(doc),
+            Focus::Rail => rail,
+        };
+        let bar = Span::styled("▁".repeat(usize::from(focused.width)), Style::new().fg(Color::Cyan));
+        frame.buffer_mut().set_span(focused.x, focus_row.y, &bar, focused.width);
         self.draw_footer(frame, footer);
         match &self.mode {
             Mode::Compose => self.draw_compose(frame, &self.compose_title("comment")),

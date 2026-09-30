@@ -125,27 +125,24 @@ fn a_thread_box_previews_a_long_reply_in_a_few_lines_and_keeps_its_line_breaks()
     assert!(screen.contains('…'), "{screen}");
 }
 
-/// Whether every drawn cell of the document, and of the first rail card, is dimmed.
-fn dimmed(app: &mut App) -> (bool, bool) {
+/// Whether the row above the panes carries the focus bar over the document, and over
+/// the first rail card.
+fn barred(app: &mut App) -> (bool, bool) {
     let buffer = buffer(app);
-    let all_dim = |rect: ratatui::layout::Rect| {
-        rect.positions()
-            .filter_map(|p| buffer.cell(p))
-            .filter(|c| c.symbol() != " ")
-            .all(|c| c.modifier.contains(Modifier::DIM))
-    };
+    let bar_row = app.geometry.doc.y - 1;
     let card = app.geometry.bubbles.first().expect("a card").0;
-    (all_dim(app.geometry.doc), all_dim(card))
+    let has_bar = |x: u16| buffer.cell((x, bar_row)).is_some_and(|c| c.symbol() == "▁");
+    (has_bar(app.geometry.doc.x), has_bar(card.x))
 }
 
 #[test]
-fn the_pane_without_focus_is_dimmed() {
-    let (_root, mut app, _) = file_app("rail-dim");
+fn a_bar_above_the_panes_marks_the_one_with_focus() {
+    let (_root, mut app, _) = file_app("rail-bar");
     app.add_quote_annotation("two", Kind::Comment, "Why two?".into()).expect("comment");
-    assert_eq!(dimmed(&mut app), (false, true), "the document has focus: the rail is dimmed");
+    assert_eq!(barred(&mut app), (true, false), "the document has focus");
     app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Tab))).expect("tab");
     assert_eq!(app.focus, Focus::Rail);
-    assert_eq!(dimmed(&mut app), (true, false), "the rail has focus: the document is dimmed");
+    assert_eq!(barred(&mut app), (false, true), "the rail has focus");
 }
 
 /// The note Tab lands on, in `file_app` with a comment on each of `quotes` (its body is

@@ -311,7 +311,7 @@ fn the_tree_scrolls_to_keep_the_cursor_visible_and_hit_tests_through_the_offset(
     let root = folder(30);
     let mut app = App::open_folder(&root, 100, Box::new(Discard)).expect("folder opens");
     app.data_dir = scratch_data_dir();
-    // 140 columns shows the tree; 20 rows leaves 18 for the body (header + footer).
+    // 140 columns shows the tree; 20 rows leaves 17 for the body (header, focus bar, footer).
     draw_sized(&mut app, 140, 20);
     app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Tab))).expect("tab");
     for _ in 0..25 {
@@ -319,22 +319,22 @@ fn the_tree_scrolls_to_keep_the_cursor_visible_and_hit_tests_through_the_offset(
     }
     assert_eq!(app.tree_cursor, 25);
     let rows = draw_sized(&mut app, 140, 20);
-    assert_eq!(app.tree_scroll, 8, "the window slides so row 25 is the last visible row");
-    assert!(row(&rows, 1).contains("f08.md"), "first drawn tree row was {:?}", row(&rows, 1));
+    assert_eq!(app.tree_scroll, 9, "the window slides so row 25 is the last visible row");
+    assert!(row(&rows, 2).contains("f09.md"), "first drawn tree row was {:?}", row(&rows, 2));
     assert!(row(&rows, 18).contains("f25.md"), "last drawn tree row was {:?}", row(&rows, 18));
-    let tree_pane: Vec<String> = rows[1..=18].iter().map(|r| r.chars().take(28).collect()).collect();
+    let tree_pane: Vec<String> = rows[2..=18].iter().map(|r| r.chars().take(28).collect()).collect();
     assert!(!tree_pane.iter().any(|r| r.contains("f00.md")), "tree pane was {tree_pane:#?}");
 
     // Clicking the third visible row opens the file at scroll + 2, not row 2.
     let click = Event::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
         column: 2,
-        row: 3,
+        row: 4,
         modifiers: KeyModifiers::NONE,
     });
     app.handle_event(&click).expect("click");
-    assert_eq!(app.tree_cursor, 10);
-    assert_eq!(open_path(&app), "f10.md");
+    assert_eq!(app.tree_cursor, 11);
+    assert_eq!(open_path(&app), "f11.md");
 
     // Moving back up pulls the window with the cursor.
     app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Tab))).expect("tab");
@@ -342,7 +342,7 @@ fn the_tree_scrolls_to_keep_the_cursor_visible_and_hit_tests_through_the_offset(
         app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Char('k')))).expect("k");
     }
     draw_sized(&mut app, 140, 20);
-    assert_eq!((app.tree_cursor, app.tree_scroll), (5, 5));
+    assert_eq!((app.tree_cursor, app.tree_scroll), (6, 6));
 
     // The wheel over the tree scrolls the tree, not the document, and leaves the cursor alone.
     let wheel = Event::Mouse(MouseEvent {
@@ -352,12 +352,12 @@ fn the_tree_scrolls_to_keep_the_cursor_visible_and_hit_tests_through_the_offset(
         modifiers: KeyModifiers::NONE,
     });
     app.handle_event(&wheel).expect("wheel");
-    assert_eq!((app.tree_cursor, app.tree_scroll, app.scroll), (5, 8, 0));
+    assert_eq!((app.tree_cursor, app.tree_scroll, app.scroll), (6, 9, 0));
     // Wheel scrolling is clamped to the last full window of rows.
     for _ in 0..20 {
         app.handle_event(&wheel).expect("wheel");
     }
-    assert_eq!(app.tree_scroll, 12, "30 rows in 18 lines: the window stops at 12");
+    assert_eq!(app.tree_scroll, 13, "30 rows in 17 lines: the window stops at 13");
     let rows = draw_sized(&mut app, 140, 20);
     assert!(row(&rows, 18).contains("f29.md"), "last tree row was {:?}", row(&rows, 18));
     std::fs::remove_dir_all(&root).expect("cleanup");
@@ -381,7 +381,7 @@ fn double_clicking_a_block_offers_the_toolbar_for_the_whole_block() {
     let mut app = app(Box::new(Discard));
     draw(&mut app);
     // "first thing" is the second block; single click starts a selection, not a toolbar.
-    let (col, row) = (5, 3);
+    let (col, row) = (5, 4);
     app.handle_event(&click_at(col, row)).expect("first click");
     let rows = draw(&mut app);
     assert!(!rows.iter().any(|r| r.contains("looks good")), "no toolbar after one click");
@@ -400,7 +400,7 @@ fn double_clicking_a_block_offers_the_toolbar_for_the_whole_block() {
 fn a_comment_can_span_lines_and_enter_saves_it() {
     let mut app = app(Box::new(Discard));
     draw(&mut app);
-    let (col, row) = (5, 3);
+    let (col, row) = (5, 4);
     app.handle_event(&click_at(col, row)).expect("click");
     app.handle_event(&click_at(col, row)).expect("double click");
     app.handle_event(&key(KeyCode::Char('c'), KeyModifiers::NONE)).expect("open compose");
@@ -429,8 +429,8 @@ fn a_comment_can_span_lines_and_enter_saves_it() {
 fn pasting_into_the_comment_box_keeps_newlines() {
     let mut app = app(Box::new(Discard));
     draw(&mut app);
-    app.handle_event(&click_at(5, 3)).expect("click");
-    app.handle_event(&click_at(5, 3)).expect("double click");
+    app.handle_event(&click_at(5, 4)).expect("click");
+    app.handle_event(&click_at(5, 4)).expect("double click");
     app.handle_event(&key(KeyCode::Char('c'), KeyModifiers::NONE)).expect("compose");
     app.handle_event(&Event::Paste("pasted one\r\npasted two".to_owned())).expect("paste");
     app.handle_event(&key(KeyCode::Enter, KeyModifiers::NONE)).expect("save");
