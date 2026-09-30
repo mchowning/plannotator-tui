@@ -147,3 +147,34 @@ fn the_pane_without_focus_is_dimmed() {
     assert_eq!(app.focus, Focus::Rail);
     assert_eq!(dimmed(&mut app), (true, false), "the rail has focus: the document is dimmed");
 }
+
+/// The note Tab lands on, in `file_app` with a comment on each of `quotes` (its body is
+/// its quote), after `j` is pressed `down` times from the heading: 1 is "one", 2 "two",
+/// 3 "three".
+fn tab_lands_on(tag: &str, quotes: &[&str], down: usize) -> String {
+    let (_root, mut app, _) = file_app(tag);
+    for quote in quotes {
+        app.add_quote_annotation(quote, Kind::Comment, (*quote).into()).expect("comment");
+    }
+    rail_text(&mut app);
+    (0..down).for_each(|_| press(&mut app, 'j'));
+    app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Tab))).expect("tab");
+    assert_eq!(app.focus, Focus::Rail);
+    app.rail()[app.rail_cursor].annotation.body.clone()
+}
+
+#[test]
+fn tab_goes_to_the_note_on_the_selected_block() {
+    assert_eq!(tab_lands_on("tab-on", &["one", "three"], 3), "three");
+}
+
+#[test]
+fn tab_goes_to_the_nearest_note_above_or_below_when_the_block_has_none() {
+    assert_eq!(tab_lands_on("tab-above", &["Plan", "three"], 1), "Plan");
+    assert_eq!(tab_lands_on("tab-below", &["Plan", "three"], 2), "three");
+}
+
+#[test]
+fn tab_between_two_equally_near_notes_goes_to_the_one_below() {
+    assert_eq!(tab_lands_on("tab-tie", &["one", "three"], 2), "three");
+}

@@ -149,6 +149,12 @@ impl App {
     fn cycle_focus(&mut self) {
         let has_tree = self.tree.is_some();
         let has_rail = !self.rail().is_empty();
+        if self.focus == Focus::Document
+            && has_rail
+            && let Some(nearest) = self.nearest_rail_card()
+        {
+            self.rail_cursor = nearest;
+        }
         self.focus = match self.focus {
             Focus::Document if has_rail => Focus::Rail,
             Focus::Document | Focus::Rail if has_tree => Focus::Tree,

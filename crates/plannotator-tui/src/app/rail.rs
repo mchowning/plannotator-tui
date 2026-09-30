@@ -70,6 +70,51 @@ impl App {
         self.rail_cursor = self.rail_cursor.min(self.rail().len().saturating_sub(1));
     }
 
+    /// The placed card nearest the document selection, measured in rows: one on the
+    /// selection first, then the closest above or below, the one below on a tie.
+    pub(super) fn nearest_rail_card(&self) -> Option<usize> {
+        let here = self.selection_rows();
+        self.rail()
+            .iter()
+            .enumerate()
+            .filter_map(|(index, entry)| Some((index, self.source_rows(entry.range?)?)))
+            .min_by_key(|(_, rows)| {
+                if rows.start >= here.end {
+                    (rows.start - here.end, 0)
+                } else if rows.end <= here.start {
+                    (here.start - rows.end, 1)
+                } else {
+                    (0, 0)
+                }
+            })
+            .map(|(index, _)| index)
+    }
+
+    /// Document rows of a `v`/`V` selection, else of the selected block or part.
+    fn selection_rows(&self) -> Range<usize> {
+        match self.selection.filter(|s| !s.is_empty()) {
+            Some(selection) => {
+                let (start, end) = selection.ordered();
+                start.0..end.0 + 1
+            }
+            None => self.selected_rows(),
+        }
+    }
+
+    /// Document rows showing any of a source range, across every block it touches.
+    fn source_rows(&self, range: &Range<usize>) -> Option<Range<usize>> {
+        let layout = &self.open.layout;
+        self.open
+            .doc
+            .blocks
+            .iter()
+            .enumerate()
+            .filter(|(_, block)| block.range.start < range.end && range.start < block.range.end)
+            .map(|(index, _)| layout.rows_in_range(index, range))
+            .filter(|rows| !rows.is_empty())
+            .reduce(|a, b| a.start.min(b.start)..a.end.max(b.end))
+    }
+
     fn bubble_lines(entry: &RailEntry<'_>, width: usize) -> Vec<Line<'static>> {
         let wrapped = |text: &str, style: Style| -> Vec<Line<'static>> {
             wrap_line(&Line::from(text.to_owned()), &[], width)

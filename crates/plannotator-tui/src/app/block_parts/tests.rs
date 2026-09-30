@@ -269,6 +269,18 @@ fn gutter_marked(app: &mut App) -> Vec<String> {
 }
 
 #[test]
+fn tab_on_a_table_row_goes_to_that_rows_note() {
+    let mut app = table_app();
+    app.add_quote_annotation("Ann", Kind::Comment, "a".into()).expect("comment");
+    app.add_quote_annotation("Bob", Kind::Comment, "b".into()).expect("comment");
+    highlighted_and_footer(&mut app);
+    (0..3).for_each(|_| key(&mut app, KeyCode::Char('j')));
+    key(&mut app, KeyCode::Tab);
+    assert_eq!(gutter_marked(&mut app), ["│ Bob  │ 41  │"], "the selection stays on Bob's row");
+    assert_eq!(app.rail_selected_id(), app.rail().get(1).map(|e| e.annotation.id.clone()));
+}
+
+#[test]
 fn a_rail_card_for_a_table_row_marks_only_that_row() {
     let mut app = table_app();
     app.add_quote_annotation("Ann", Kind::Comment, "a".into()).expect("comment");
