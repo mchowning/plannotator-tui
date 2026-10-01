@@ -469,7 +469,7 @@ fn the_rail_names_ctrl_o_for_a_thread_by_what_it_would_do() {
 }
 
 #[test]
-fn the_new_comment_box_names_ctrl_r_when_attached_and_the_edit_box_does_not() {
+fn the_comment_and_edit_boxes_name_ctrl_r_when_attached() {
     let (_root, mut app, _) = file_app("hints-compose");
     app.attach_agent_session("pi".into());
     press(&mut app, 'c');
@@ -483,7 +483,7 @@ fn the_new_comment_box_names_ctrl_r_when_attached_and_the_edit_box_does_not() {
     press(&mut app, 'e');
     let screen = draw(&mut app, 160, 45);
     let border = screen.lines().find(|l| l.contains("╭ edit")).expect("edit box");
-    assert!(border.contains("╭ edit · enter saves · alt+enter new line"), "{border:?}");
+    assert!(border.contains("╭ edit · enter saves · ctrl-r thread"), "{border:?}");
 }
 
 #[test]

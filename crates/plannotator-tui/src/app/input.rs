@@ -390,7 +390,11 @@ impl App {
     fn text_key(&mut self, key: KeyEvent) -> Result<()> {
         match self.compose.handle_key(key) {
             ComposeAction::Cancel => self.mode = Mode::Browse,
-            ComposeAction::SaveThread if self.mode == Mode::Compose => self.save_compose_as_thread()?,
+            ComposeAction::SaveThread => match &self.mode {
+                Mode::Compose => self.save_compose_as_thread()?,
+                Mode::Edit(id) => self.save_edit_as_thread(&id.clone())?,
+                _ => {}
+            },
             ComposeAction::Save => {
                 let body = self.compose.value().trim().to_owned();
                 match std::mem::replace(&mut self.mode, Mode::Browse) {
@@ -421,7 +425,7 @@ impl App {
                     }
                 }
             }
-            ComposeAction::Edited | ComposeAction::SaveThread => {}
+            ComposeAction::Edited => {}
         }
         Ok(())
     }

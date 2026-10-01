@@ -45,6 +45,25 @@ impl App {
         Ok(())
     }
 
+    /// Ctrl-R in the edit box: save the edit, then make the annotation a thread.
+    /// Unattached, the box stays open so the text is not lost.
+    pub(super) fn save_edit_as_thread(&mut self, id: &str) -> Result<()> {
+        if self.attached_session().is_none() {
+            self.status = Some(NOT_ATTACHED.into());
+            return Ok(());
+        }
+        let body = self.compose.value().trim().to_owned();
+        self.mode = Mode::Browse;
+        if body.is_empty() {
+            self.status = Some("edit cancelled: empty".into());
+            return Ok(());
+        }
+        if self.open.store.edit_body(id, body)? {
+            self.mark_unsent();
+        }
+        self.retry_thread(id)
+    }
+
     /// Ctrl-R on the rail: make the selected comment a thread, or retry its failed turn.
     pub(super) fn thread_key_on_rail(&mut self) -> Result<()> {
         let Some(id) = self.rail_selected_id() else { return Ok(()) };

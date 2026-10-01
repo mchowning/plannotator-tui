@@ -105,6 +105,39 @@ fn ctrl_r_on_a_rail_comment_makes_it_a_thread_and_keeps_its_body() {
 }
 
 #[test]
+fn ctrl_r_while_editing_a_comment_saves_the_edit_as_a_thread() {
+    let (_root, mut app, _) = file_app("thread-edit");
+    app.attach_agent_session("pi-session-1".into());
+    app.add_quote_annotation("two", Kind::Comment, "Why two?".into()).expect("comment");
+    app.focus = Focus::Rail;
+    key(&mut app, KeyCode::Enter);
+    assert!(matches!(app.mode, Mode::Edit(_)));
+    type_text(&mut app, " Not three?");
+    ctrl_r(&mut app);
+
+    assert_eq!(app.mode, Mode::Browse);
+    let annotation = record(&app)["annotations"][0].clone();
+    assert_eq!(annotation["body"], "Why two? Not three?");
+    assert_eq!(annotation["plannotator_tui_thread"]["state"], "live");
+    assert_eq!(app.status.as_deref(), Some("thread started"));
+}
+
+#[test]
+fn ctrl_r_while_editing_without_an_agent_session_keeps_the_box_open() {
+    let (_root, mut app, _) = file_app("thread-edit-unattached");
+    app.add_quote_annotation("two", Kind::Comment, "Why two?".into()).expect("comment");
+    let before = std::fs::read(record_path(&app)).expect("record");
+    app.focus = Focus::Rail;
+    key(&mut app, KeyCode::Enter);
+    type_text(&mut app, " Not three?");
+    ctrl_r(&mut app);
+
+    assert_eq!(app.status.as_deref(), Some("no agent session attached"));
+    assert!(matches!(app.mode, Mode::Edit(_)), "the typed text is kept");
+    assert_eq!(std::fs::read(record_path(&app)).expect("record"), before);
+}
+
+#[test]
 fn ctrl_r_on_a_failed_thread_retries_it() {
     let (_root, mut app, _) = file_app("thread-retry");
     app.attach_agent_session("pi-session-1".into());
