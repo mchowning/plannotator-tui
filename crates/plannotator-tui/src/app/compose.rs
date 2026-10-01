@@ -119,34 +119,70 @@ impl Compose {
     }
 
     /// The buffer wrapped to `width` display cells, with the cursor's (row, col) in that
-    /// wrapping. Explicit newlines always break; a full row wraps to the next.
+    /// wrapping. Explicit newlines always break. A word that would cross the edge moves
+    /// whole to the next row; only a word wider than a row is split. Spaces never wrap:
+    /// they stay at the end of their row, as in a word processor.
     pub(super) fn wrapped(&self, width: usize) -> (Vec<String>, usize, usize) {
         let width = width.max(1);
-        let mut lines = vec![String::new()];
+        // Each row as a range of `chars`; a newline belongs to no row.
+        let mut rows: Vec<std::ops::Range<usize>> = Vec::new();
+        let mut start = 0;
         let mut used = 0;
-        let (mut cursor_row, mut cursor_col) = (0, 0);
+        // Where the current row could break: just after its last space.
+        let mut last_break = None;
         for (i, &c) in self.chars.iter().enumerate() {
-            if i == self.cursor {
-                (cursor_row, cursor_col) = (lines.len() - 1, used);
-            }
             if c == '\n' {
-                lines.push(String::new());
-                used = 0;
+                rows.push(start..i);
+                (start, used, last_break) = (i + 1, 0, None);
                 continue;
             }
             let w = width_of(c);
-            if used + w > width {
-                lines.push(String::new());
-                used = 0;
-            }
-            if let Some(last) = lines.last_mut() {
-                last.push(c);
+            if c != ' ' && used + w > width && i > start {
+                let end = last_break.unwrap_or(i);
+                rows.push(start..end);
+                start = end;
+                used = self.width_between(end, i);
+                last_break = None;
             }
             used += w;
+            if c == ' ' {
+                last_break = Some(i + 1);
+            }
         }
-        if self.cursor == self.chars.len() {
-            (cursor_row, cursor_col) = (lines.len() - 1, used);
-        }
+        rows.push(start..self.chars.len());
+
+        // The cursor sits on the last row starting at or before it, so a cursor on a
+        // soft break shows at the start of the next row.
+        let cursor_row = rows.iter().rposition(|r| r.start <= self.cursor).unwrap_or(0);
+        let cursor_col = rows.get(cursor_row).map_or(0, |r| self.width_between(r.start, self.cursor));
+        let lines =
+            rows.into_iter().map(|r| self.chars.get(r).unwrap_or_default().iter().collect()).collect();
         (lines, cursor_row, cursor_col)
+    }
+
+    /// Display width of `chars[from..to]`.
+    fn width_between(&self, from: usize, to: usize) -> usize {
+        self.chars.get(from..to).unwrap_or_default().iter().copied().map(width_of).sum()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Compose;
+
+    fn rows(lines: &[&str]) -> Vec<String> {
+        lines.iter().map(|&l| l.to_owned()).collect()
+    }
+
+    #[test]
+    fn a_word_that_does_not_fit_moves_whole_to_the_next_row() {
+        let compose = Compose::with_text("one two three");
+        assert_eq!(compose.wrapped(10), (rows(&["one two ", "three"]), 1, 5));
+    }
+
+    #[test]
+    fn a_word_longer_than_the_row_is_split_at_the_edge() {
+        let compose = Compose::with_text("a abcdefghijkl");
+        assert_eq!(compose.wrapped(5), (rows(&["a ", "abcde", "fghij", "kl"]), 3, 2));
     }
 }
