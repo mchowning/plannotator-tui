@@ -222,3 +222,13 @@ fn left_arrow_on_the_rail_goes_back_to_the_document() {
     app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Left))).expect("left");
     assert_eq!(app.focus, Focus::Document);
 }
+
+#[test]
+fn a_comment_box_title_does_not_show_the_annotation_id() {
+    let (_root, mut app, _) = file_app("rail-no-id");
+    app.add_quote_annotation("two", Kind::Comment, "Why two?".into()).expect("comment");
+    let id = app.open.store.placed()[0].annotation.id.clone();
+    let tail: String = id.chars().rev().take(5).collect::<Vec<_>>().into_iter().rev().collect();
+    let screen = rail_text(&mut app);
+    assert!(!screen.contains(&tail), "the id tail {tail} is internal\n{screen}");
+}

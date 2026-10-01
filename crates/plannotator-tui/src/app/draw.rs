@@ -438,9 +438,3 @@ impl App {
         frame.render_widget(Paragraph::new(Line::from(Span::raw(help).dim()).right_aligned()), right_area);
     }
 }
-
-/// The tail of an id, enough to tell bubbles apart: `anno_…F0123` → `F0123`.
-pub(super) fn short_id(id: &str) -> String {
-    let tail: Vec<char> = id.chars().rev().take(5).collect();
-    tail.into_iter().rev().collect()
-}

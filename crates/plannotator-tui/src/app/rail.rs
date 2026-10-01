@@ -11,7 +11,7 @@ use ratatui::style::{Color, Style, Stylize};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
-use super::draw::{accent, short_id};
+use super::draw::accent;
 use super::{App, Focus, glyph, label};
 use crate::wrap::wrap_line;
 
@@ -224,7 +224,7 @@ impl App {
                 ""
             };
             let title = Span::styled(
-                format!(" {} {}{thread}{sent} ", glyph(kind), short_id(&entry.annotation.id)),
+                format!(" {}{thread}{sent} ", glyph(kind)),
                 if resolved { Style::new().fg(Color::DarkGray) } else { Style::new().fg(accent(kind)) },
             );
             let bubble = Block::default()
