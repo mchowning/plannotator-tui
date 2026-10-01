@@ -131,7 +131,7 @@ fn barred(app: &mut App) -> (bool, bool) {
     let buffer = buffer(app);
     let bar_row = app.geometry.doc.y - 1;
     let card = app.geometry.bubbles.first().expect("a card").0;
-    let has_bar = |x: u16| buffer.cell((x, bar_row)).is_some_and(|c| c.symbol() == "▁");
+    let has_bar = |x: u16| buffer.cell((x, bar_row)).is_some_and(|c| c.symbol() == "━");
     (has_bar(app.geometry.doc.x), has_bar(card.x))
 }
 

@@ -95,7 +95,7 @@ impl App {
             Focus::Document => gutter.union(doc),
             Focus::Rail => rail,
         };
-        let bar = Span::styled("▁".repeat(usize::from(focused.width)), Style::new().fg(Color::Cyan));
+        let bar = Span::styled("━".repeat(usize::from(focused.width)), Style::new().fg(Color::Cyan));
         frame.buffer_mut().set_span(focused.x, focus_row.y, &bar, focused.width);
         self.draw_footer(frame, footer);
         match &self.mode {
