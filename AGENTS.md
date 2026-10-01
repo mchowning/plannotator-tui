@@ -47,6 +47,9 @@ interpret markdown ourselves. Anything that needs to know "what is a heading" is
   signatures. Lifetimes in public types need a reason.
 - **Commits are small and describe intent**, lowercase conventional style:
   `feat(schema): anchor resolution by rendered quote`.
+- **Every commit is pushed to the fork right away:** `git push fork main`. The installed
+  binary builds from `github:mchowning/plannotator-tui`, so an unpushed commit never
+  reaches `rebuild`. Never push to `origin` (upstream) unasked.
 
 ## Data contract
 
