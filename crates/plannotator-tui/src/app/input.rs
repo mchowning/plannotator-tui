@@ -8,6 +8,7 @@ use ratatui::crossterm::event::{
 
 use super::compose::ComposeAction;
 use super::menu::ReviewAction;
+use super::search::Seek;
 use super::selection::Selection;
 use super::send::SendState;
 use super::{App, Focus, GUTTER, Mode, Pending, TOOLBAR};
@@ -30,6 +31,10 @@ impl App {
                 Mode::Thread(_) => self.thread_panel_key(*key),
                 Mode::Keys => {
                     self.keys_key(*key);
+                    Ok(())
+                }
+                Mode::Search => {
+                    self.search_key(*key);
                     Ok(())
                 }
             },
@@ -242,7 +247,7 @@ impl App {
             (KeyCode::Esc, _) => {
                 if self.pending.is_some() || self.selection.is_some() {
                     self.clear_selection();
-                } else {
+                } else if !self.clear_search_highlight() {
                     self.request_quit();
                 }
             }
@@ -259,6 +264,9 @@ impl App {
                 self.status = Some("visual line: j/k to extend, enter to select, esc to cancel".into());
             }
             (KeyCode::Char('i'), _) => self.start_roaming(),
+            (KeyCode::Char('/'), _) => self.start_search(),
+            (KeyCode::Char('n'), KeyModifiers::NONE) if self.has_search() => self.jump_to_match(Seek::Next),
+            (KeyCode::Char('N'), _) if self.has_search() => self.jump_to_match(Seek::Previous),
             (KeyCode::Char('j') | KeyCode::Down, _) => self.step(1),
             (KeyCode::Char('k') | KeyCode::Up, _) => self.step(-1),
             // In block mode the arrows are for panes, not the cursor; left has none to go to.
@@ -414,7 +422,8 @@ impl App {
                     | Mode::Archive
                     | Mode::ReviewMenu
                     | Mode::Thread(_)
-                    | Mode::Keys => {
+                    | Mode::Keys
+                    | Mode::Search => {
                         if !body.is_empty()
                             && let Some(pending) = self.pending.take()
                         {

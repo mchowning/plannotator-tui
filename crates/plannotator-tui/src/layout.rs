@@ -141,6 +141,35 @@ impl DocLayout {
         block.rows.get(row - block.first_row)
     }
 
+    /// Each occurrence of `query` in `block`'s rendered text, as the source offsets of the
+    /// characters it covers. Lines are searched before wrapping, so a phrase split across
+    /// screen rows still matches; decoration with no source byte is left out.
+    pub(crate) fn hits(&self, block: usize, query: &str) -> Vec<Vec<usize>> {
+        let Some(b) = self.blocks.get(block) else { return Vec::new() };
+        b.text
+            .lines
+            .iter()
+            .zip(&b.offsets)
+            .flat_map(|(line, offsets)| {
+                let chars: Vec<char> = line.spans.iter().flat_map(|s| s.content.chars()).collect();
+                crate::search::occurrences(&chars, query)
+                    .into_iter()
+                    .map(|hit| offsets.get(hit).unwrap_or_default().iter().flatten().copied().collect())
+                    .collect::<Vec<Vec<usize>>>()
+            })
+            .filter(|hit| !hit.is_empty())
+            .collect()
+    }
+
+    /// The document (row, column) showing source byte `offset` in `block`.
+    pub(crate) fn position_of(&self, block: usize, offset: usize) -> Option<(usize, usize)> {
+        let b = self.blocks.get(block)?;
+        b.rows.iter().enumerate().find_map(|(i, row)| {
+            let col = row.cells.iter().position(|&c| c == Some(offset))?;
+            Some((b.first_row + i, col))
+        })
+    }
+
     /// First document row on which any cell falls inside `range`.
     pub(crate) fn first_row_in_range(&self, block: usize, range: &Range<usize>) -> Option<usize> {
         let b = self.blocks.get(block)?;

@@ -19,6 +19,7 @@ mod replies;
 mod review;
 #[cfg(test)]
 mod review_test_support;
+mod search;
 mod selection;
 mod send;
 #[cfg(test)]
@@ -74,6 +75,8 @@ enum Mode {
     Thread(String),
     /// The key list is open over the review.
     Keys,
+    /// Typing a `/` search query in the footer.
+    Search,
 }
 
 /// Which pane keyboard input goes to.
@@ -218,6 +221,7 @@ pub(crate) struct App {
     /// First key list line drawn.
     keys_scroll: usize,
     keys_filter: keys::KeyFilter,
+    search: search::Search,
     /// Copy selections to the terminal clipboard (off for headless runs).
     pub(crate) clipboard: bool,
     pub(crate) quit: bool,
@@ -289,6 +293,7 @@ impl App {
             panel_back: 0,
             keys_scroll: 0,
             keys_filter: keys::KeyFilter::default(),
+            search: search::Search::default(),
             clipboard: false,
             quit: false,
         })

@@ -106,7 +106,7 @@ impl App {
             Mode::Archive => self.draw_archive(frame),
             Mode::ReviewMenu => self.draw_review_menu(frame),
             Mode::Keys => self.draw_key_list(frame),
-            Mode::Browse | Mode::ConfirmQuit | Mode::ConfirmRemove(_) | Mode::Thread(_) => {}
+            Mode::Browse | Mode::ConfirmQuit | Mode::ConfirmRemove(_) | Mode::Thread(_) | Mode::Search => {}
         }
     }
 
@@ -179,6 +179,7 @@ impl App {
         let text_selection_active = self.selection.is_some();
         let doc_focused = self.focus == Focus::Document;
         let selected_rows = self.selected_rows();
+        let matches = self.search_highlights(self.scroll..self.scroll + usize::from(doc.height));
         let buf = frame.buffer_mut();
 
         for y in 0..doc.height {
@@ -216,6 +217,13 @@ impl App {
                     }
                 };
                 buf.set_style(Rect { x: doc.x + col as u16, y: screen_y, width: 1, height: 1 }, style);
+            }
+
+            for (col, cell) in row.cells.iter().enumerate().take(usize::from(doc.width)) {
+                if cell.is_some_and(|offset| matches.contains(&offset)) {
+                    let rect = Rect { x: doc.x + col as u16, y: screen_y, width: 1, height: 1 };
+                    buf.set_style(rect, Style::new().bg(palette().search_bg));
+                }
             }
 
             if let Some(passage) = &passage {
@@ -370,6 +378,12 @@ impl App {
                 self.delivery.describe()
             );
             frame.render_widget(Paragraph::new(Line::from(Span::raw(question).bold())), area);
+            return;
+        }
+        if self.mode == Mode::Search {
+            let prompt = format!("/{}", self.search.typed);
+            frame.set_cursor_position((area.x + prompt.width() as u16, area.y));
+            frame.render_widget(Paragraph::new(prompt), area);
             return;
         }
         if let Mode::ConfirmRemove(removal) = &self.mode {

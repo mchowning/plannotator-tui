@@ -93,6 +93,8 @@ const KEY_LIST: &[(Group, &str, &str, When)] = &[
     (Group::Document, "j/k", "next / previous block, table row or list item", When::Always),
     (Group::Document, "g/G", "first / last block", When::Always),
     (Group::Document, "ctrl-d/ctrl-u", "half a page down / up", When::Always),
+    (Group::Document, "/", "search the document text", When::Always),
+    (Group::Document, "n/N", "next / previous match", When::Always),
     (Group::Document, "c/enter", "comment on the block, table row or list item", When::Always),
     (Group::Document, "x", "remove the notes on the block, table row or list item", When::Always),
     (Group::Document, "i", "move a cursor within the text", When::Always),
