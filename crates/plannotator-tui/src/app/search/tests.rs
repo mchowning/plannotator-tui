@@ -85,15 +85,36 @@ fn a_match_split_across_wrapped_rows_is_found() {
 }
 
 #[test]
-fn typing_shows_the_query_in_the_footer_and_esc_cancels_without_moving() {
-    let (_root, mut app) = app_with("search-cancel", DOC);
+fn typing_jumps_to_the_first_match_from_where_slash_was_pressed_as_each_key_arrives() {
+    let (_root, mut app) = app_with("search-live", DOC);
     press(&mut app, '/');
-    "logi".chars().for_each(|c| press(&mut app, c));
+    "login".chars().for_each(|c| press(&mut app, c));
     let screen = draw(&mut app, 120, 30);
-    assert!(screen.lines().last().is_some_and(|l| l.starts_with("/logi")), "{screen}");
+    assert!(screen.lines().last().is_some_and(|l| l.starts_with("/login")), "{screen}");
+    assert_eq!(at_cursor(&app, 10), (1, "login page".into()), "moved before enter");
+    assert!(highlighted(&mut app, "login flow"), "matches are highlighted while typing");
+    " f".chars().for_each(|c| press(&mut app, c));
+    assert_eq!(at_cursor(&app, 10), (3, "login flow".into()));
+    key(&mut app, KeyCode::Backspace);
+    key(&mut app, KeyCode::Backspace);
+    assert_eq!(at_cursor(&app, 10), (1, "login page".into()), "searched again from the start");
+    key(&mut app, KeyCode::Enter);
+    assert_eq!(app.mode, Mode::Browse);
+    assert_eq!(at_cursor(&app, 10), (1, "login page".into()), "enter keeps the match");
+}
+
+#[test]
+fn esc_while_typing_puts_the_cursor_and_view_back() {
+    let (_root, mut app) = app_with("search-cancel", DOC);
+    app.select_block(2);
+    let before = (app.selected, app.cursor, app.scroll);
+    press(&mut app, '/');
+    "login".chars().for_each(|c| press(&mut app, c));
+    assert_ne!(app.selected, before.0, "the live search moved");
     key(&mut app, KeyCode::Esc);
     assert_eq!(app.mode, Mode::Browse);
-    assert_eq!(app.selected, 0);
+    assert_eq!((app.selected, app.cursor, app.scroll), before);
+    assert!(!highlighted(&mut app, "login flow"), "a cancelled search leaves nothing highlighted");
 }
 
 /// Whether the cell where `text` starts on screen wears the search style.
