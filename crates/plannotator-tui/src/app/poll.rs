@@ -98,6 +98,21 @@ mod tests {
     }
 
     #[test]
+    fn the_rail_returns_focus_to_the_document_when_another_process_removes_its_last_note() {
+        let (_root, mut app, _) = file_app("poll-remove-last");
+        app.add_quote_annotation("two", Kind::Comment, "Why two?".into()).expect("comment");
+        let id = app.open.store.placed()[0].annotation.id.clone();
+        app.focus = crate::app::Focus::Rail;
+        let start = Instant::now();
+        app.poll_record(start);
+        let (mut cli, _) = other_writer(&app);
+        cli.remove(&id).expect("remove");
+
+        assert!(app.poll_record(start + Duration::from_millis(250)));
+        assert_eq!(app.focus, crate::app::Focus::Document);
+    }
+
+    #[test]
     fn a_change_the_file_stats_miss_is_still_read_within_a_second() {
         let (_root, mut app, _) = file_app("poll-second");
         app.add_quote_annotation("two", Kind::Comment, "Why two?".into()).expect("comment");

@@ -66,8 +66,13 @@ impl App {
         self.rail().get(self.rail_cursor).map(|e| e.annotation.id.clone())
     }
 
+    /// Also hands focus back to the document once the rail has nothing left to select.
     pub(super) fn clamp_rail_cursor(&mut self) {
-        self.rail_cursor = self.rail_cursor.min(self.rail().len().saturating_sub(1));
+        let len = self.rail().len();
+        self.rail_cursor = self.rail_cursor.min(len.saturating_sub(1));
+        if len == 0 && self.focus == Focus::Rail {
+            self.focus = Focus::Document;
+        }
     }
 
     /// The placed card nearest the document selection, measured in rows: one on the

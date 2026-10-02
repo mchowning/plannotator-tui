@@ -99,3 +99,15 @@ fn x_on_a_block_without_notes_does_not_ask() {
     assert_eq!(app.mode, Mode::Browse);
     assert_eq!(app.open.store.len(), 1);
 }
+
+#[test]
+fn removing_the_last_rail_note_returns_focus_to_the_document() {
+    let (_root, mut app) = notes_app("remove-last");
+    press(&mut app, 'x');
+    press(&mut app, 'y');
+    assert_eq!(app.focus, Focus::Rail, "a note is left");
+    press(&mut app, 'x');
+    press(&mut app, 'y');
+    assert_eq!(app.open.store.len(), 0);
+    assert_eq!(app.focus, Focus::Document);
+}
