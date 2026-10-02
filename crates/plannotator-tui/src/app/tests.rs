@@ -419,7 +419,7 @@ fn a_comment_can_span_lines_and_enter_saves_it() {
     let rows = draw(&mut app);
     assert!(rows.iter().any(|r| r.contains("first line")), "compose shows line one: {rows:?}");
     assert!(rows.iter().any(|r| r.contains("second")), "compose shows line two");
-    assert!(rows.iter().any(|r| r.contains("alt+enter new line")), "hint shows the fallback key");
+    assert!(rows.iter().any(|r| r.contains("alt+⏎ newline")), "hint shows the fallback key");
     app.handle_event(&key(KeyCode::Enter, KeyModifiers::NONE)).expect("save");
     let placed = app.open.store.placed();
     assert_eq!(placed.last().expect("annotation").annotation.body, "first line\nsecond\nthird");

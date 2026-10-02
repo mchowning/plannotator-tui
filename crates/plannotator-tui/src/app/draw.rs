@@ -20,7 +20,7 @@ const RAIL_MIN_TOTAL_WIDTH: u16 = 80;
 const TREE_WIDTH: u16 = 28;
 /// Below this the tree is hidden unless toggled on; Tab still reaches it.
 pub(super) const TREE_MIN_TOTAL_WIDTH: u16 = 120;
-const COMPOSE_WIDTH: u16 = 48;
+const COMPOSE_WIDTH: u16 = 64;
 
 /// An unread note's card and the header's count. A fixed 256-colour orange: ANSI yellow,
 /// the comment colour, already looks orange in many themes.
@@ -311,17 +311,17 @@ impl App {
     /// bubble being edited, else centered.
     /// The compose box title; the Shift+Enter hint appears only when the terminal
     /// actually distinguishes it, so the hint is never a lie.
-    /// `Ctrl-T` saves a new or edited comment as a thread, so an attached box names it,
-    /// early, because the box cuts its title short.
+    /// `Ctrl-T` saves a new or edited comment as a thread, so an attached box names it.
+    /// Worded short so the longest title still fits [`COMPOSE_WIDTH`] whole.
     fn compose_title(&self, verb: &str) -> String {
-        let newline = if self.shift_enter { "shift+enter new line" } else { "alt+enter new line" };
+        let newline = if self.shift_enter { "shift+\u{23ce} newline" } else { "alt+\u{23ce} newline" };
         let thread =
             if matches!(self.mode, Mode::Compose | Mode::Edit(_)) && self.attached_session().is_some() {
-                " \u{b7} ctrl-t thread"
+                " \u{b7} c-t thread"
             } else {
                 ""
             };
-        format!(" {verb} \u{b7} enter saves{thread} \u{b7} {newline} \u{b7} esc cancels ")
+        format!(" {verb} \u{b7} \u{23ce} save{thread} \u{b7} {newline} \u{b7} esc cancel ")
     }
 
     fn draw_compose(&self, frame: &mut Frame, title: &str) {

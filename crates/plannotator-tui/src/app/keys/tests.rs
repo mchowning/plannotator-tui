@@ -475,7 +475,7 @@ fn the_comment_and_edit_boxes_name_ctrl_t_when_attached() {
     press(&mut app, 'c');
     let screen = draw(&mut app, 160, 45);
     let border = screen.lines().find(|l| l.contains("╭ comment")).expect("compose box");
-    assert!(border.contains("╭ comment · enter saves · ctrl-t thread"), "{border:?}");
+    assert!(border.contains("╭ comment · ⏎ save · c-t thread · alt+⏎ newline · esc cancel ─"), "{border:?}");
     key(&mut app, KeyCode::Esc);
 
     app.add_quote_annotation("one", Kind::Comment, "A".into()).expect("comment");
@@ -483,7 +483,21 @@ fn the_comment_and_edit_boxes_name_ctrl_t_when_attached() {
     press(&mut app, 'e');
     let screen = draw(&mut app, 160, 45);
     let border = screen.lines().find(|l| l.contains("╭ edit")).expect("edit box");
-    assert!(border.contains("╭ edit · enter saves · ctrl-t thread"), "{border:?}");
+    assert!(border.contains("╭ edit · ⏎ save · c-t thread · alt+⏎ newline · esc cancel ─"), "{border:?}");
+}
+
+#[test]
+fn the_longest_comment_box_title_is_shown_whole() {
+    let (_root, mut app, _) = file_app("hints-compose-whole");
+    app.attach_agent_session("pi".into());
+    app.shift_enter = true;
+    press(&mut app, 'c');
+    let screen = draw(&mut app, 160, 45);
+    let border = screen.lines().find(|l| l.contains("╭ comment")).expect("compose box");
+    assert!(
+        border.contains("╭ comment · ⏎ save · c-t thread · shift+⏎ newline · esc cancel ╮"),
+        "{border:?}"
+    );
 }
 
 #[test]
@@ -498,7 +512,7 @@ fn an_unattached_review_names_no_thread_keys() {
     press(&mut app, 'c');
     let screen = draw(&mut app, 160, 45);
     let border = screen.lines().find(|l| l.contains("╭ comment")).expect("compose box");
-    assert!(border.contains("╭ comment · enter saves · alt+enter new line"), "{border:?}");
+    assert!(border.contains("╭ comment · ⏎ save · alt+⏎ newline · esc cancel ─"), "{border:?}");
 }
 
 #[test]
