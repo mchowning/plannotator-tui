@@ -323,7 +323,7 @@ impl App {
     fn start_roaming(&mut self) {
         self.clear_selection();
         self.roam = true;
-        self.status = Some("move: hjkl w b 0 $ · v/V select · esc back to blocks".into());
+        self.status = Some("move: hjkl w b e 0 $ · v/V select · esc back to blocks".into());
     }
 
     /// The cursor motions shared by visual and roaming modes. True when `key` was one.
@@ -335,6 +335,7 @@ impl App {
             KeyCode::Char('k') | KeyCode::Up => self.move_cursor(-1, 0),
             KeyCode::Char('w') => self.move_word(1),
             KeyCode::Char('b') => self.move_word(-1),
+            KeyCode::Char('e') => self.move_word_end(),
             KeyCode::Char('0') | KeyCode::Home => self.cursor.1 = 0,
             KeyCode::Char('$') | KeyCode::End => {
                 self.cursor.1 =
@@ -393,6 +394,19 @@ impl App {
             (0..col).rev().find(|&i| is_boundary(i)).unwrap_or(0)
         };
         self.cursor.1 = next;
+    }
+
+    /// Jump to the next word end on the current row, as vim's `e` does.
+    fn move_word_end(&mut self) {
+        let Some(row) = self.open.layout.row(self.cursor.0) else { return };
+        let chars: Vec<char> = row.line.to_string().chars().collect();
+        let is_end = |i: usize| {
+            let here = chars.get(i).is_some_and(|c| !c.is_whitespace());
+            let after = chars.get(i + 1).is_none_or(|c| c.is_whitespace());
+            here && after
+        };
+        let last = chars.len().saturating_sub(1);
+        self.cursor.1 = (self.cursor.1 + 1..chars.len()).find(|&i| is_end(i)).unwrap_or(last);
     }
 
     fn text_key(&mut self, key: KeyEvent) -> Result<()> {

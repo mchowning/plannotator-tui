@@ -116,6 +116,7 @@ const KEY_LIST: &[(Group, &str, &str, When)] = &[
     (Group::Tree, "esc", "back to the document", When::Tree),
     (Group::Moving, "hjkl", "move the cursor", When::Always),
     (Group::Moving, "w/b", "next / previous word", When::Always),
+    (Group::Moving, "e", "end of the word", When::Always),
     (Group::Moving, "0/$", "start / end of the row", When::Always),
     (Group::Moving, "enter", "finish the selection", When::Always),
     (Group::Moving, "v/V", "switch to text / whole rows; again to finish", When::Always),

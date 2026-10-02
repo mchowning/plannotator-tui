@@ -525,6 +525,23 @@ fn v_and_shift_v_switch_the_selection_between_characters_and_lines() {
 }
 
 #[test]
+fn e_moves_to_the_end_of_the_word_even_from_the_end_of_the_last_one() {
+    let mut app = two_row_app();
+    let press = |app: &mut App, code| app.handle_event(&key(code, KeyModifiers::NONE)).expect("key");
+    press(&mut app, KeyCode::Char('i'));
+    press(&mut app, KeyCode::Char('e'));
+    assert_eq!(app.cursor, (0, 4), "e lands on the last letter of \"first\"");
+    press(&mut app, KeyCode::Char('e'));
+    assert_eq!(app.cursor, (0, 9), "from a word end, e goes to the end of the next word");
+
+    press(&mut app, KeyCode::Char('0'));
+    press(&mut app, KeyCode::Char('v'));
+    press(&mut app, KeyCode::Char('e'));
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(pending_text(&app), Some("first"), "e extends a selection too");
+}
+
+#[test]
 fn a_block_key_ends_roaming() {
     let mut app = app(Box::new(Discard));
     draw(&mut app);
