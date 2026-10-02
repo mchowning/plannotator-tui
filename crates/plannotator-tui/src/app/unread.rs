@@ -1,5 +1,5 @@
-//! Unread notes: `u` on the rail marks one, opening a thread reads it, and a thread open in
-//! the panel stays read while its answers land.
+//! Unread notes: `u` on the rail marks one, `n`/`N` step through them, opening a thread
+//! reads it, and a thread open in the panel stays read while its answers land.
 
 use anyhow::Result;
 use plannotator_tui_schema::{ThreadState, is_unread};
@@ -22,6 +22,21 @@ impl App {
         self.open.store.set_unread(&id, !unread)?;
         self.status = Some(if unread { "marked read" } else { "marked unread" }.into());
         Ok(())
+    }
+
+    /// `n`/`N` on the rail: the cursor to the next or previous unread note, wrapping. Only
+    /// moves; opening it is what reads it.
+    pub(super) fn step_to_unread(&mut self, forward: bool) {
+        let entries = self.rail();
+        let len = entries.len();
+        let at = self.rail_cursor;
+        let found = (1..=len)
+            .map(|step| if forward { (at + step) % len } else { (at + len - step) % len })
+            .find(|&i| entries.get(i).is_some_and(|e| is_unread(e.annotation)));
+        match found {
+            Some(i) => self.rail_cursor = i,
+            None => self.status = Some("no unread".into()),
+        }
     }
 
     pub(super) fn unread_count(&self) -> usize {

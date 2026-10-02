@@ -208,6 +208,8 @@ impl App {
             },
             KeyCode::Char('e') => self.edit_selected_annotation(),
             KeyCode::Char('x') | KeyCode::Delete => self.ask_remove_selected_note(),
+            KeyCode::Char('n') => self.step_to_unread(true),
+            KeyCode::Char('N') => self.step_to_unread(false),
             KeyCode::Esc | KeyCode::Left => self.focus = Focus::Document,
             _ => {}
         }

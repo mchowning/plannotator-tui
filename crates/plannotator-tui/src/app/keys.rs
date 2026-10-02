@@ -108,6 +108,7 @@ const KEY_LIST: &[(Group, &str, &str, When)] = &[
     (Group::Rail, "e", "edit the note", When::Always),
     (Group::Rail, "x/del", "remove the note", When::Always),
     (Group::Rail, "u", "mark the note unread, or read", When::Always),
+    (Group::Rail, "n/N", "next / previous unread note", When::Always),
     (Group::Rail, "ctrl-t", "make a comment a thread, or retry a failed turn", When::Attached),
     (Group::Rail, "ctrl-r", "resolve or unresolve a thread", When::Attached),
     (Group::Rail, "esc/←", "back to the document", When::Always),

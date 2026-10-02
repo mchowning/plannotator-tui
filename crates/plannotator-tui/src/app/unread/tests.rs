@@ -150,3 +150,30 @@ fn the_header_counts_unread_notes_in_orange() {
         (0..160).filter_map(|x| buffer.cell((x, 0))).map(ratatui::buffer::Cell::symbol).collect();
     assert!(!row.contains("unread"), "{row}");
 }
+
+#[test]
+fn n_and_capital_n_step_through_unread_notes_and_wrap() {
+    let (_root, mut app, _, _) = unread_app("unread-next");
+    app.add_quote_annotation("three", Kind::Comment, "C".into()).expect("comment");
+    app.rail_cursor = 2;
+    press(&mut app, 'u');
+    app.rail_cursor = 0;
+    press(&mut app, 'n');
+    assert_eq!(app.rail_cursor, 1);
+    press(&mut app, 'n');
+    assert_eq!(app.rail_cursor, 2);
+    press(&mut app, 'n');
+    assert_eq!(app.rail_cursor, 1, "wraps to the first");
+    press(&mut app, 'N');
+    assert_eq!(app.rail_cursor, 2, "wraps to the last");
+    assert!(app.rail().iter().filter(|e| is_unread(e.annotation)).count() == 2, "moving reads nothing");
+}
+
+#[test]
+fn n_with_nothing_unread_says_so_and_stays_put() {
+    let (_root, mut app, _, thread) = unread_app("unread-none");
+    app.open.store.set_unread(&thread, false).expect("read");
+    press(&mut app, 'n');
+    assert_eq!(app.rail_cursor, 0);
+    assert_eq!(app.status.as_deref(), Some("no unread"));
+}

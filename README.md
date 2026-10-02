@@ -84,7 +84,7 @@ dimmed. The keys also work without opening the menu.
 | reply review | `S` send and close |
 | document | `j`/`k` block, or row in a table, or item in a list; `c` comment on the block, row or item (double-click for a whole table or list); `x` clear its annotations (a row's or item's alone); `v` select with `hjkl` `w` `b` `0` `$`; `V` select whole rows; `i` move the cursor with those keys first, then `v` to select from there; `/` search the document text (not notes), `n`/`N` next/previous match, `Esc` clears the highlight; `→` notes |
 | toolbar | `a` looks good · `c` comment · `d` delete · `Esc` |
-| notes | `j`/`k`; `←` or `Esc` document; `e` edit; `x` remove (asks first; so does `x` on a block); click a bubble; `Enter` edits a comment or opens a thread; `u` marks a note unread or read |
+| notes | `j`/`k`; `←` or `Esc` document; `e` edit; `x` remove (asks first; so does `x` on a block); click a bubble; `Enter` edits a comment or opens a thread; `u` marks a note unread or read; `n`/`N` next/previous unread |
 | comment input (attached) | `Enter` saves a comment · `Ctrl-T` saves it as a thread |
 | notes (attached) | `Ctrl-T` makes a comment a thread, or retries a failed or interrupted turn · `Ctrl-R` resolves or unresolves a thread |
 | thread panel | type, `Enter` reply · `Ctrl-N` note for the main agent · `Ctrl-T` retry · `Ctrl-R` resolve or unresolve · `PgUp`/`PgDn` or the wheel scroll · `Esc` close |
