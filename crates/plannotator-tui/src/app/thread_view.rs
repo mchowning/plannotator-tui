@@ -56,7 +56,7 @@ impl App {
         match key.code {
             KeyCode::PageUp => self.panel_back += page,
             KeyCode::PageDown => self.panel_back = self.panel_back.saturating_sub(page),
-            KeyCode::Char('o') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.toggle_resolved(&id)?;
             }
             KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {

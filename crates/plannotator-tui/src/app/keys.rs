@@ -107,8 +107,8 @@ const KEY_LIST: &[(Group, &str, &str, When)] = &[
     (Group::Rail, "enter", "edit the note, or open its thread", When::Always),
     (Group::Rail, "e", "edit the note", When::Always),
     (Group::Rail, "x/del", "remove the note", When::Always),
-    (Group::Rail, "ctrl-r", "make a comment a thread, or retry a failed turn", When::Attached),
-    (Group::Rail, "ctrl-o", "resolve or unresolve a thread", When::Attached),
+    (Group::Rail, "ctrl-t", "make a comment a thread, or retry a failed turn", When::Attached),
+    (Group::Rail, "ctrl-r", "resolve or unresolve a thread", When::Attached),
     (Group::Rail, "esc/←", "back to the document", When::Always),
     (Group::Tree, "j/k", "move", When::Tree),
     (Group::Tree, "enter/l", "open a file, or expand a folder", When::Tree),
@@ -127,7 +127,7 @@ const KEY_LIST: &[(Group, &str, &str, When)] = &[
     (Group::Toolbar, "esc", "clear the selection", When::Always),
     (Group::CommentBox, "enter", "save", When::Always),
     (Group::CommentBox, "alt+enter", "new line", When::Always),
-    (Group::CommentBox, "ctrl-r", "save as a thread", When::Attached),
+    (Group::CommentBox, "ctrl-t", "save as a thread", When::Attached),
     (Group::CommentBox, "esc", "cancel", When::Always),
     (Group::ThreadPanel, "enter", "send the reply", When::Attached),
     (
@@ -136,8 +136,8 @@ const KEY_LIST: &[(Group, &str, &str, When)] = &[
         "save as a note for the main agent, not answered in the thread",
         When::Attached,
     ),
-    (Group::ThreadPanel, "ctrl-r", "retry a failed turn", When::Attached),
-    (Group::ThreadPanel, "ctrl-o", "resolve or unresolve", When::Attached),
+    (Group::ThreadPanel, "ctrl-t", "retry a failed turn", When::Attached),
+    (Group::ThreadPanel, "ctrl-r", "resolve or unresolve", When::Attached),
     (Group::ThreadPanel, "pgup/pgdn", "scroll", When::Attached),
     (Group::ThreadPanel, "esc", "close", When::Attached),
 ];
@@ -310,13 +310,13 @@ impl App {
         match &entry.thread {
             Some(thread) => {
                 match (matches!(thread.turn, Turn::Failed { .. } | Turn::Interrupted), thread.resolved) {
-                    (true, false) => "enter open \u{b7} ctrl-r retry \u{b7} ctrl-o resolve \u{b7} ",
-                    (true, true) => "enter open \u{b7} ctrl-r retry \u{b7} ctrl-o unresolve \u{b7} ",
-                    (false, false) => "enter open \u{b7} ctrl-o resolve \u{b7} ",
-                    (false, true) => "enter open \u{b7} ctrl-o unresolve \u{b7} ",
+                    (true, false) => "enter open \u{b7} ctrl-t retry \u{b7} ctrl-r resolve \u{b7} ",
+                    (true, true) => "enter open \u{b7} ctrl-t retry \u{b7} ctrl-r unresolve \u{b7} ",
+                    (false, false) => "enter open \u{b7} ctrl-r resolve \u{b7} ",
+                    (false, true) => "enter open \u{b7} ctrl-r unresolve \u{b7} ",
                 }
             }
-            None if entry.annotation.anchor.kind() == Kind::Comment => "ctrl-r thread \u{b7} ",
+            None if entry.annotation.anchor.kind() == Kind::Comment => "ctrl-t thread \u{b7} ",
             None => "",
         }
     }

@@ -23,7 +23,7 @@ impl App {
         self.agent_session.as_deref().filter(|_| single_file)
     }
 
-    /// Ctrl-R in the comment box: save the comment as a thread. Unattached, the box stays
+    /// Ctrl-T in the comment box: save the comment as a thread. Unattached, the box stays
     /// open so the text is not lost.
     pub(super) fn save_compose_as_thread(&mut self) -> Result<()> {
         if self.attached_session().is_none() {
@@ -45,7 +45,7 @@ impl App {
         Ok(())
     }
 
-    /// Ctrl-R in the edit box: save the edit, then make the annotation a thread.
+    /// Ctrl-T in the edit box: save the edit, then make the annotation a thread.
     /// Unattached, the box stays open so the text is not lost.
     pub(super) fn save_edit_as_thread(&mut self, id: &str) -> Result<()> {
         if self.attached_session().is_none() {
@@ -64,13 +64,13 @@ impl App {
         self.retry_thread(id)
     }
 
-    /// Ctrl-R on the rail: make the selected comment a thread, or retry its failed turn.
+    /// Ctrl-T on the rail: make the selected comment a thread, or retry its failed turn.
     pub(super) fn thread_key_on_rail(&mut self) -> Result<()> {
         let Some(id) = self.rail_selected_id() else { return Ok(()) };
         self.retry_thread(&id)
     }
 
-    /// Ctrl-R on annotation `id`, from the rail or the thread panel.
+    /// Ctrl-T on annotation `id`, from the rail or the thread panel.
     pub(super) fn retry_thread(&mut self, id: &str) -> Result<()> {
         if self.attached_session().is_none() {
             self.status = Some(NOT_ATTACHED.into());
@@ -89,13 +89,13 @@ impl App {
         Ok(())
     }
 
-    /// Ctrl-O on the rail: resolve the selected thread, or unresolve it.
+    /// Ctrl-R on the rail: resolve the selected thread, or unresolve it.
     pub(super) fn resolve_key_on_rail(&mut self) -> Result<()> {
         let Some(id) = self.rail_selected_id() else { return Ok(()) };
         self.toggle_resolved(&id)
     }
 
-    /// Ctrl-O on annotation `id`, from the rail or the thread panel. Needs no agent session:
+    /// Ctrl-R on annotation `id`, from the rail or the thread panel. Needs no agent session:
     /// resolving changes only how the thread is shown and sent.
     pub(super) fn toggle_resolved(&mut self, id: &str) -> Result<()> {
         let thread = self.open.store.threads()?.into_iter().find(|t| t.annotation.id == id).map(|t| t.thread);

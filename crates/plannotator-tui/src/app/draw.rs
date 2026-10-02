@@ -307,13 +307,13 @@ impl App {
     /// bubble being edited, else centered.
     /// The compose box title; the Shift+Enter hint appears only when the terminal
     /// actually distinguishes it, so the hint is never a lie.
-    /// `Ctrl-R` saves a new or edited comment as a thread, so an attached box names it,
+    /// `Ctrl-T` saves a new or edited comment as a thread, so an attached box names it,
     /// early, because the box cuts its title short.
     fn compose_title(&self, verb: &str) -> String {
         let newline = if self.shift_enter { "shift+enter new line" } else { "alt+enter new line" };
         let thread =
             if matches!(self.mode, Mode::Compose | Mode::Edit(_)) && self.attached_session().is_some() {
-                " \u{b7} ctrl-r thread"
+                " \u{b7} ctrl-t thread"
             } else {
                 ""
             };
@@ -430,7 +430,7 @@ impl App {
         let pointed = |help: String| super::keys::with_pointer(help, available);
         let help = match self.focus {
             _ if matches!(self.mode, Mode::Thread(_)) => {
-                "enter reply · ctrl-n note · ctrl-r retry · pgup/pgdn scroll ".to_owned()
+                "enter reply · ctrl-n note · ctrl-t retry · pgup/pgdn scroll ".to_owned()
             }
             _ if self.pending.is_some() => "a looks good · c comment · d delete · esc clear ".to_owned(),
             Focus::Tree => pointed("j/k · enter open · . hidden · E send · t hide · q quit ".to_owned()),

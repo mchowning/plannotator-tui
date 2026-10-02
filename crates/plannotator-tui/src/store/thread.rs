@@ -22,7 +22,7 @@ pub(crate) struct ThreadEntry<'a> {
     pub(crate) detached: bool,
 }
 
-/// What `Ctrl-R` on an existing annotation did.
+/// What `Ctrl-T` on an existing annotation did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ThreadKey {
     /// A regular comment became a thread.
@@ -90,7 +90,7 @@ impl Store {
         Ok(id)
     }
 
-    /// `Ctrl-R` on an annotation: turn a regular comment into a thread, or retry a thread
+    /// `Ctrl-T` on an annotation: turn a regular comment into a thread, or retry a thread
     /// whose last turn failed or was interrupted.
     pub(crate) fn thread_key(&mut self, id: &str) -> Result<ThreadKey> {
         self.mutate(None, |record| {
@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn ctrl_r_starts_a_thread_retries_a_broken_turn_and_leaves_a_healthy_one_alone() {
-        let (root, _, doc, mut store) = fixture("ctrl-r");
+        let (root, _, doc, mut store) = fixture("ctrl-t");
         store.add(&doc, 0..3, "one".into(), Kind::Comment, "why?".into()).expect("comment");
         let id = store.annotations[0].id.clone();
         assert_eq!(store.thread_key(&id).expect("start"), ThreadKey::Started);

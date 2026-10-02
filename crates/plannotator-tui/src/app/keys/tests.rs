@@ -15,8 +15,8 @@ fn key(app: &mut App, code: KeyCode) {
     app.handle_event(&Event::Key(KeyEvent::from(code))).expect("key");
 }
 
-fn ctrl_r(app: &mut App) {
-    app.handle_event(&Event::Key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL))).expect("ctrl-r");
+fn ctrl_t(app: &mut App) {
+    app.handle_event(&Event::Key(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::CONTROL))).expect("ctrl-t");
 }
 
 fn mouse(app: &mut App, kind: MouseEventKind, column: u16, row: u16) {
@@ -94,31 +94,31 @@ fn an_unattached_file_review_lists_no_thread_keys_and_no_s() {
     let (_root, mut app, _) = file_app("keys-unattached");
     press(&mut app, '?');
     let rows = popup(&mut app, 160, 120);
-    assert!(!rows.iter().any(|r| r.contains("ctrl-r")), "{rows:#?}");
+    assert!(!rows.iter().any(|r| r.contains("ctrl-t")), "{rows:#?}");
     assert!(!has_row(&rows, "S"), "{rows:#?}");
     assert!(!rows.iter().any(|r| r == "Thread panel"), "{rows:#?}");
     assert!(has_row(&rows, "E") && has_row(&rows, "m"), "{rows:#?}");
 }
 
 #[test]
-fn an_attached_review_lists_ctrl_r_where_it_is_used() {
+fn an_attached_review_lists_ctrl_t_where_it_is_used() {
     let (_root, mut app, _) = file_app("keys-attached");
     app.attach_agent_session("pi".into());
     press(&mut app, '?');
     let rows = popup(&mut app, 160, 120);
     for heading in ["Comment box (while writing)", "Notes rail", "Thread panel"] {
-        assert!(has_row(group(&rows, heading), "ctrl-r"), "no ctrl-r under {heading}: {rows:#?}");
+        assert!(has_row(group(&rows, heading), "ctrl-t"), "no ctrl-t under {heading}: {rows:#?}");
     }
 }
 
 #[test]
-fn an_attached_review_lists_ctrl_o_on_the_rail_and_in_the_thread_panel() {
-    let (_root, mut app, _) = file_app("keys-ctrl-o");
+fn an_attached_review_lists_ctrl_r_on_the_rail_and_in_the_thread_panel() {
+    let (_root, mut app, _) = file_app("keys-ctrl-r");
     app.attach_agent_session("pi".into());
     press(&mut app, '?');
     let rows = popup(&mut app, 160, 120);
     for heading in ["Notes rail", "Thread panel"] {
-        assert!(has_row(group(&rows, heading), "ctrl-o"), "no ctrl-o under {heading}: {rows:#?}");
+        assert!(has_row(group(&rows, heading), "ctrl-r"), "no ctrl-r under {heading}: {rows:#?}");
     }
 }
 
@@ -441,41 +441,41 @@ fn hint_app(tag: &str) -> (std::path::PathBuf, App, [String; 3]) {
 fn the_rail_names_the_thread_key_that_applies_to_the_selected_note() {
     let (_root, mut app, [_, _, thread]) = hint_app("hints-rail");
     app.rail_cursor = 0;
-    assert!(footer(&mut app, 160).contains("ctrl-r thread"), "{:?}", footer(&mut app, 160));
+    assert!(footer(&mut app, 160).contains("ctrl-t thread"), "{:?}", footer(&mut app, 160));
 
     app.rail_cursor = 1;
-    assert!(!footer(&mut app, 160).contains("ctrl-r"), "{:?}", footer(&mut app, 160));
+    assert!(!footer(&mut app, 160).contains("ctrl-t"), "{:?}", footer(&mut app, 160));
 
     app.rail_cursor = 2;
     let line = footer(&mut app, 160);
-    assert!(line.contains("enter open") && !line.contains("ctrl-r"), "{line:?}");
+    assert!(line.contains("enter open") && !line.contains("ctrl-t"), "{line:?}");
 
     for broken in [Turn::Failed { detail: "rate limited (429)".into(), retryable: true }, Turn::Interrupted] {
         app.open.store.set_turn(&thread, broken).expect("break");
         let line = footer(&mut app, 160);
-        assert!(line.contains("enter open · ctrl-r retry"), "{line:?}");
+        assert!(line.contains("enter open · ctrl-t retry"), "{line:?}");
     }
 }
 
 #[test]
-fn the_rail_names_ctrl_o_for_a_thread_by_what_it_would_do() {
+fn the_rail_names_ctrl_r_for_a_thread_by_what_it_would_do() {
     let (_root, mut app, [_, _, thread]) = hint_app("hints-resolve");
     app.rail_cursor = 0;
-    assert!(!footer(&mut app, 160).contains("ctrl-o"), "{:?}", footer(&mut app, 160));
+    assert!(!footer(&mut app, 160).contains("ctrl-r"), "{:?}", footer(&mut app, 160));
     app.rail_cursor = 2;
-    assert!(footer(&mut app, 160).contains("enter open · ctrl-o resolve"), "{:?}", footer(&mut app, 160));
+    assert!(footer(&mut app, 160).contains("enter open · ctrl-r resolve"), "{:?}", footer(&mut app, 160));
     app.open.store.set_resolved(&thread, true).expect("resolve");
-    assert!(footer(&mut app, 160).contains("ctrl-o unresolve"), "{:?}", footer(&mut app, 160));
+    assert!(footer(&mut app, 160).contains("ctrl-r unresolve"), "{:?}", footer(&mut app, 160));
 }
 
 #[test]
-fn the_comment_and_edit_boxes_name_ctrl_r_when_attached() {
+fn the_comment_and_edit_boxes_name_ctrl_t_when_attached() {
     let (_root, mut app, _) = file_app("hints-compose");
     app.attach_agent_session("pi".into());
     press(&mut app, 'c');
     let screen = draw(&mut app, 160, 45);
     let border = screen.lines().find(|l| l.contains("╭ comment")).expect("compose box");
-    assert!(border.contains("╭ comment · enter saves · ctrl-r thread"), "{border:?}");
+    assert!(border.contains("╭ comment · enter saves · ctrl-t thread"), "{border:?}");
     key(&mut app, KeyCode::Esc);
 
     app.add_quote_annotation("one", Kind::Comment, "A".into()).expect("comment");
@@ -483,7 +483,7 @@ fn the_comment_and_edit_boxes_name_ctrl_r_when_attached() {
     press(&mut app, 'e');
     let screen = draw(&mut app, 160, 45);
     let border = screen.lines().find(|l| l.contains("╭ edit")).expect("edit box");
-    assert!(border.contains("╭ edit · enter saves · ctrl-r thread"), "{border:?}");
+    assert!(border.contains("╭ edit · enter saves · ctrl-t thread"), "{border:?}");
 }
 
 #[test]
@@ -492,7 +492,7 @@ fn an_unattached_review_names_no_thread_keys() {
     app.add_quote_annotation("one", Kind::Comment, "A".into()).expect("comment");
     app.focus = Focus::Rail;
     app.status = None;
-    assert!(!footer(&mut app, 160).contains("ctrl-r"), "{:?}", footer(&mut app, 160));
+    assert!(!footer(&mut app, 160).contains("ctrl-t"), "{:?}", footer(&mut app, 160));
 
     app.focus = Focus::Document;
     press(&mut app, 'c');
@@ -511,10 +511,10 @@ fn the_thread_panels_key_help_is_unchanged() {
     app.focus = Focus::Rail;
     key(&mut app, KeyCode::Enter);
     assert_eq!(app.mode, Mode::Thread(id));
-    ctrl_r(&mut app);
+    ctrl_t(&mut app);
     app.status = None;
     assert!(
-        footer(&mut app, 160).ends_with(" enter reply · ctrl-n note · ctrl-r retry · pgup/pgdn scroll"),
+        footer(&mut app, 160).ends_with(" enter reply · ctrl-n note · ctrl-t retry · pgup/pgdn scroll"),
         "{:?}",
         footer(&mut app, 160)
     );

@@ -103,14 +103,14 @@ impl App {
             (KeyCode::Char('H'), _) if self.is_file_review() => {
                 return self.run_review_action(ReviewAction::Archive);
             }
+            (KeyCode::Char('t'), KeyModifiers::CONTROL) if self.focus == Focus::Rail => {
+                return self.thread_key_on_rail();
+            }
             (KeyCode::Char('t'), _) => {
                 self.toggle_tree(self.geometry.doc.width + self.geometry.tree.width + GUTTER);
                 return Ok(());
             }
             (KeyCode::Char('r'), KeyModifiers::CONTROL) if self.focus == Focus::Rail => {
-                return self.thread_key_on_rail();
-            }
-            (KeyCode::Char('o'), KeyModifiers::CONTROL) if self.focus == Focus::Rail => {
                 return self.resolve_key_on_rail();
             }
             (KeyCode::Char('r'), _) => return self.reload(),

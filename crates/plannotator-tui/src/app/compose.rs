@@ -13,7 +13,7 @@ use unicode_width::UnicodeWidthChar;
 pub(super) enum ComposeAction {
     Edited,
     Save,
-    /// Ctrl-R: save as a thread.
+    /// Ctrl-T: save as a thread.
     SaveThread,
     Cancel,
 }
@@ -46,7 +46,7 @@ impl Compose {
                 self.insert('\n');
             }
             KeyCode::Enter => return ComposeAction::Save,
-            KeyCode::Char('r' | 'R') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('t' | 'T') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 return ComposeAction::SaveThread;
             }
             KeyCode::Char('j' | 'J') if key.modifiers.contains(KeyModifiers::CONTROL) => {

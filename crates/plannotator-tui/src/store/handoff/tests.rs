@@ -107,6 +107,6 @@ fn a_restored_thread_is_a_read_only_transcript() {
     assert_eq!(entry.thread.state, ThreadState::Historical);
     assert!(!entry.thread.needs_turn(entry.annotation), "no turn ever runs on it");
     assert!(store.add_user_reply(&id, "more?".into()).is_err());
-    assert_eq!(store.thread_key(&id).expect("ctrl-r"), crate::store::ThreadKey::AlreadyThread);
+    assert_eq!(store.thread_key(&id).expect("ctrl-t"), crate::store::ThreadKey::AlreadyThread);
     std::fs::remove_dir_all(root).expect("cleanup");
 }

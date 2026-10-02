@@ -132,11 +132,11 @@ fn enter_on_a_regular_comment_still_edits_it() {
 }
 
 #[test]
-fn ctrl_r_in_the_panel_retries_a_failed_turn() {
+fn ctrl_t_in_the_panel_retries_a_failed_turn() {
     let (_root, mut app, id) = thread_app("panel-retry");
     app.open.store.set_turn(&id, Turn::Interrupted).expect("interrupted");
     key(&mut app, KeyCode::Enter);
-    app.handle_event(&Event::Key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL))).expect("ctrl-r");
+    app.handle_event(&Event::Key(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::CONTROL))).expect("ctrl-t");
     assert_eq!(app.status.as_deref(), Some("retrying"));
     assert_eq!(record(&app)["annotations"][0]["plannotator_tui_thread"]["turn"]["status"], "idle");
 }
@@ -223,7 +223,7 @@ fn the_panel_title_fits_and_the_footer_names_the_panel_keys() {
     let screen = draw(&mut app, 160, 45);
     assert!(screen.contains(" thread · esc closes "), "{screen}");
     let footer = screen.lines().last().expect("footer");
-    assert!(footer.contains("enter reply · ctrl-n note · ctrl-r retry · pgup/pgdn scroll"), "{footer}");
+    assert!(footer.contains("enter reply · ctrl-n note · ctrl-t retry · pgup/pgdn scroll"), "{footer}");
 }
 
 #[test]

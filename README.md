@@ -85,9 +85,9 @@ dimmed. The keys also work without opening the menu.
 | document | `j`/`k` block, or row in a table, or item in a list; `c` comment on the block, row or item (double-click for a whole table or list); `x` clear its annotations (a row's or item's alone); `v` select with `hjkl` `w` `b` `0` `$`; `V` select whole rows; `i` move the cursor with those keys first, then `v` to select from there; `/` search the document text (not notes), `n`/`N` next/previous match, `Esc` clears the highlight; `→` notes |
 | toolbar | `a` looks good · `c` comment · `d` delete · `Esc` |
 | notes | `j`/`k`; `←` or `Esc` document; `e` edit; `x` remove (asks first; so does `x` on a block); click a bubble; `Enter` edits a comment or opens a thread |
-| comment input (attached) | `Enter` saves a comment · `Ctrl-R` saves it as a thread |
-| notes (attached) | `Ctrl-R` makes a comment a thread, or retries a failed or interrupted turn · `Ctrl-O` resolves or unresolves a thread |
-| thread panel | type, `Enter` reply · `Ctrl-N` note for the main agent · `Ctrl-R` retry · `Ctrl-O` resolve or unresolve · `PgUp`/`PgDn` or the wheel scroll · `Esc` close |
+| comment input (attached) | `Enter` saves a comment · `Ctrl-T` saves it as a thread |
+| notes (attached) | `Ctrl-T` makes a comment a thread, or retries a failed or interrupted turn · `Ctrl-R` resolves or unresolves a thread |
+| thread panel | type, `Enter` reply · `Ctrl-N` note for the main agent · `Ctrl-T` retry · `Ctrl-R` resolve or unresolve · `PgUp`/`PgDn` or the wheel scroll · `Esc` close |
 | file/folder review | `E` send new · `m` review menu (`R` resend all · `F` finish review · `U` undo · `H` archive) |
 | tree | `j`/`k`; `Enter` open; `.` show/hide dot-prefixed entries (`.agents/`, `.github/`); `E` sends new notes across all reviewed files, including collapsed folders |
 
@@ -172,7 +172,7 @@ status line.
 
 When pi's `/plannotator-file-tui` opens a single file, or pi's `/plannotator-last-tui` opens
 the reply it just gave, it attaches the review to that pi session
-(`PLANNOTATOR_TUI_AGENT_SESSION`). A comment can then become a thread: `Ctrl-R` in the
+(`PLANNOTATOR_TUI_AGENT_SESSION`). A comment can then become a thread: `Ctrl-T` in the
 comment box, or on a comment in the notes. A copy of the pi session answers each thread in the
 background, several at once. Its box shows the latest message, `working…` while a turn runs,
 and a status line when one fails or is interrupted. `Enter` opens the thread in a panel beside
@@ -181,9 +181,9 @@ review picks up the answers on its own within a second. `Ctrl-N` in the box save
 for the main agent instead: the thread's copy does not answer it, it shows as `note`,
 and the next send carries it with the thread. A note does not unresolve a thread.
 
-`Ctrl-O` on a thread in the notes, or in its panel, marks it resolved: its box dims, says
+`Ctrl-R` on a thread in the notes, or in its panel, marks it resolved: its box dims, says
 `resolved`, and shows only the first row of your first message. It is still sent, marked
-`(resolved)`. `Ctrl-O` again, or a reply, unresolves it.
+`(resolved)`. `Ctrl-R` again, or a reply, unresolves it.
 
 A thread whose passage was edited away moves to a `detached` group at the top of the notes,
 with the old quote struck through, and still takes replies.
@@ -196,7 +196,7 @@ the next `/plannotator-file-tui` on that file, or `/plannotator-last-tui` on tha
 the same session delivers it first; `/plannotator-last-tui` then stops, so you can read the
 answer before reviewing it. A thread in a reply review is told the file is a copy of its reply
 and not to edit it. Outside pi, for folders, for `/plannotator-last-tui recover`, and for the
-in-app `plannotator-tui last` view, `Ctrl-R` says `no agent session attached`.
+in-app `plannotator-tui last` view, `Ctrl-T` says `no agent session attached`.
 
 By default each thread's session is a fork: a copy of the main session's history, so it knows
 the conversation. Set it to start empty instead, with only the passage, the file and the comment:
