@@ -475,7 +475,7 @@ fn the_comment_and_edit_boxes_name_ctrl_t_when_attached() {
     press(&mut app, 'c');
     let screen = draw(&mut app, 160, 45);
     let border = screen.lines().find(|l| l.contains("╭ comment")).expect("compose box");
-    assert!(border.contains("╭ comment · ⏎ save · c-t thread · alt+⏎ newline · esc cancel ─"), "{border:?}");
+    assert!(border.contains("╭ comment · ⏎ save · c-t thread · a-⏎ newline · esc cancel ─"), "{border:?}");
     key(&mut app, KeyCode::Esc);
 
     app.add_quote_annotation("one", Kind::Comment, "A".into()).expect("comment");
@@ -483,7 +483,7 @@ fn the_comment_and_edit_boxes_name_ctrl_t_when_attached() {
     press(&mut app, 'e');
     let screen = draw(&mut app, 160, 45);
     let border = screen.lines().find(|l| l.contains("╭ edit")).expect("edit box");
-    assert!(border.contains("╭ edit · ⏎ save · c-t thread · alt+⏎ newline · esc cancel ─"), "{border:?}");
+    assert!(border.contains("╭ edit · ⏎ save · c-t thread · a-⏎ newline · esc cancel ─"), "{border:?}");
 }
 
 #[test]
@@ -512,7 +512,7 @@ fn an_unattached_review_names_no_thread_keys() {
     press(&mut app, 'c');
     let screen = draw(&mut app, 160, 45);
     let border = screen.lines().find(|l| l.contains("╭ comment")).expect("compose box");
-    assert!(border.contains("╭ comment · ⏎ save · alt+⏎ newline · esc cancel ─"), "{border:?}");
+    assert!(border.contains("╭ comment · ⏎ save · a-⏎ newline · esc cancel ─"), "{border:?}");
 }
 
 #[test]

@@ -314,7 +314,7 @@ impl App {
     /// `Ctrl-T` saves a new or edited comment as a thread, so an attached box names it.
     /// Worded short so the longest title still fits [`COMPOSE_WIDTH`] whole.
     fn compose_title(&self, verb: &str) -> String {
-        let newline = if self.shift_enter { "shift+\u{23ce} newline" } else { "alt+\u{23ce} newline" };
+        let newline = if self.shift_enter { "shift+\u{23ce} newline" } else { "a-\u{23ce} newline" };
         let thread =
             if matches!(self.mode, Mode::Compose | Mode::Edit(_)) && self.attached_session().is_some() {
                 " \u{b7} c-t thread"
