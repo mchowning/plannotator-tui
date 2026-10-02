@@ -4,14 +4,14 @@
 use std::ops::Range;
 
 use plannotator_tui_schema::thread::{Author, messages};
-use plannotator_tui_schema::{Annotation, Thread, Turn};
+use plannotator_tui_schema::{Annotation, Thread, Turn, is_unread};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
-use super::draw::accent;
+use super::draw::{UNREAD, accent};
 use super::{App, Focus, glyph, label};
 use crate::wrap::wrap_line;
 
@@ -214,8 +214,12 @@ impl App {
                 (Some(part), Some(range)) => part.contains(&range.start),
                 _ => block == Some(self.selected),
             };
-            let border =
-                if highlighted { Style::new().fg(accent(kind)) } else { Style::new().fg(Color::DarkGray) };
+            let unread = is_unread(entry.annotation);
+            let border = match (highlighted, unread) {
+                (true, _) => Style::new().fg(accent(kind)),
+                (false, true) => Style::new().fg(UNREAD),
+                (false, false) => Style::new().fg(Color::DarkGray),
+            };
             let border = if rail_focused && index == self.rail_cursor { border.bold() } else { border };
             let resolved = entry.thread.as_ref().is_some_and(|t| t.resolved);
             let thread = match &entry.thread {
@@ -230,7 +234,11 @@ impl App {
             };
             let title = Span::styled(
                 format!(" {}{thread}{sent} ", glyph(kind)),
-                if resolved { Style::new().fg(Color::DarkGray) } else { Style::new().fg(accent(kind)) },
+                match (unread, resolved) {
+                    (true, _) => Style::new().fg(UNREAD),
+                    (false, true) => Style::new().fg(Color::DarkGray),
+                    (false, false) => Style::new().fg(accent(kind)),
+                },
             );
             let bubble = Block::default()
                 .borders(Borders::ALL)

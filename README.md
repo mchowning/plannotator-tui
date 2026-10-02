@@ -183,7 +183,8 @@ and the next send carries it with the thread. A note does not unresolve a thread
 
 A thread is unread when a turn ends, answered, failed or interrupted, until `Enter` opens
 it; one open in the panel stays read. `u` on a note marks it unread or read; a comment is
-unread only that way. Sending a review clears it.
+unread only that way. Sending a review clears it. An unread note's box is orange (its border
+takes the usual colour while it is selected), and the header counts them.
 
 `Ctrl-R` on a thread in the notes, or in its panel, marks it resolved: its box dims, says
 `resolved`, and shows only the first row of your first message. It is still sent, marked

@@ -22,6 +22,10 @@ const TREE_WIDTH: u16 = 28;
 pub(super) const TREE_MIN_TOTAL_WIDTH: u16 = 120;
 const COMPOSE_WIDTH: u16 = 48;
 
+/// An unread note's card and the header's count. A fixed 256-colour orange: ANSI yellow,
+/// the comment colour, already looks orange in many themes.
+pub(super) const UNREAD: Color = Color::Indexed(208);
+
 pub(super) fn accent(kind: Kind) -> Color {
     match kind {
         Kind::Comment => Color::Yellow,

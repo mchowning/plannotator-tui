@@ -1,5 +1,6 @@
-//! The header: the send button and, for file and folder reviews, the Review menu button.
-//! The two wrap onto another row only when a pane is too narrow for both.
+//! The header: the send button, for file and folder reviews the Review menu button, and
+//! the unread count when there is one.
+//! They wrap onto another row only when a pane is too narrow for all of them.
 
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -8,6 +9,7 @@ use ratatui::text::Span;
 use unicode_width::UnicodeWidthStr;
 
 use super::App;
+use super::draw::UNREAD;
 use super::send::SendState;
 use crate::theme::palette;
 
@@ -23,6 +25,8 @@ pub(super) const REVIEW_LABEL: &str = "Review \u{25be} (m)";
 enum Button {
     Send,
     Review,
+    /// The unread count: a label, not clickable.
+    Unread,
 }
 
 impl App {
@@ -35,6 +39,10 @@ impl App {
         let mut labels = vec![(Button::Send, self.send_label())];
         if self.is_file_review() {
             labels.push((Button::Review, REVIEW_LABEL.to_owned()));
+        }
+        let unread = self.unread_count();
+        if unread > 0 {
+            labels.push((Button::Unread, format!("{unread} unread")));
         }
         let mut right = width;
         let mut y = 0;
@@ -74,6 +82,7 @@ impl App {
                     self.geometry.review_button = Some(rect);
                     Style::new().fg(Color::Cyan).bg(palette().toolbar_bg)
                 }
+                Button::Unread => Style::new().fg(UNREAD).bold(),
             };
             frame.buffer_mut().set_span(rect.x, rect.y, &Span::styled(label, style), rect.width);
         }

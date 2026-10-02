@@ -24,6 +24,10 @@ impl App {
         Ok(())
     }
 
+    pub(super) fn unread_count(&self) -> usize {
+        self.rail().iter().filter(|e| is_unread(e.annotation)).count()
+    }
+
     /// The thread open in the panel, read: on opening, and again whenever a turn ends while
     /// it is on screen.
     pub(super) fn read_open_thread(&mut self) -> Result<()> {
