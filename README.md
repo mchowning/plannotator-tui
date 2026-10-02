@@ -84,7 +84,7 @@ dimmed. The keys also work without opening the menu.
 | reply review | `S` send and close |
 | document | `j`/`k` block, or row in a table, or item in a list; `c` comment on the block, row or item (double-click for a whole table or list); `x` clear its annotations (a row's or item's alone); `v` select with `hjkl` `w` `b` `0` `$`; `V` select whole rows; `i` move the cursor with those keys first, then `v` to select from there; `/` search the document text (not notes), `n`/`N` next/previous match, `Esc` clears the highlight; `→` notes |
 | toolbar | `a` looks good · `c` comment · `d` delete · `Esc` |
-| notes | `j`/`k`; `←` or `Esc` document; `e` edit; `x` remove (asks first; so does `x` on a block); click a bubble; `Enter` edits a comment or opens a thread |
+| notes | `j`/`k`; `←` or `Esc` document; `e` edit; `x` remove (asks first; so does `x` on a block); click a bubble; `Enter` edits a comment or opens a thread; `u` marks a note unread or read |
 | comment input (attached) | `Enter` saves a comment · `Ctrl-T` saves it as a thread |
 | notes (attached) | `Ctrl-T` makes a comment a thread, or retries a failed or interrupted turn · `Ctrl-R` resolves or unresolves a thread |
 | thread panel | type, `Enter` reply · `Ctrl-N` note for the main agent · `Ctrl-T` retry · `Ctrl-R` resolve or unresolve · `PgUp`/`PgDn` or the wheel scroll · `Esc` close |
@@ -180,6 +180,10 @@ the document, with the passage highlighted and a reply box. Replies land in the 
 review picks up the answers on its own within a second. `Ctrl-N` in the box saves it as a note
 for the main agent instead: the thread's copy does not answer it, it shows as `note`,
 and the next send carries it with the thread. A note does not unresolve a thread.
+
+A thread is unread when a turn ends, answered, failed or interrupted, until `Enter` opens
+it; one open in the panel stays read. `u` on a note marks it unread or read; a comment is
+unread only that way. Sending a review clears it.
 
 `Ctrl-R` on a thread in the notes, or in its panel, marks it resolved: its box dims, says
 `resolved`, and shows only the first row of your first message. It is still sent, marked

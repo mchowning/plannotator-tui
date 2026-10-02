@@ -4,7 +4,7 @@
 use std::collections::HashSet;
 
 use anyhow::{Context, Result};
-use plannotator_tui_schema::{Annotation, Thread, ThreadState, Turn};
+use plannotator_tui_schema::{Annotation, Thread, ThreadState, Turn, set_unread};
 use time::{Duration, OffsetDateTime, UtcOffset, format_description::well_known::Rfc3339};
 
 use super::{Delivered, Record, Store};
@@ -178,7 +178,8 @@ pub(super) fn delivery(
 }
 
 /// Move the active annotations named by `ids` into the archive. An archived thread is a
-/// transcript: historical, with no fork to answer it and no turn running.
+/// transcript: historical, with no fork to answer it, no turn running, and nothing
+/// left unread.
 pub(super) fn archive(record: &mut Record, ids: &[String]) -> Result<()> {
     if ids.is_empty() {
         return Ok(());
@@ -200,6 +201,7 @@ pub(super) fn archive(record: &mut Record, ids: &[String]) -> Result<()> {
             }
             thread.store_on(&mut annotation)?;
         }
+        set_unread(&mut annotation, false);
         record.archived.push(annotation);
     }
     Ok(())

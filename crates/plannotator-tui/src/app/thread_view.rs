@@ -32,6 +32,9 @@ impl App {
             self.select_offset(start);
         }
         self.mode = Mode::Thread(id);
+        if let Err(error) = self.read_open_thread() {
+            self.status = Some(format!("marking the thread read: {error:#}"));
+        }
     }
 
     fn close_thread(&mut self) {

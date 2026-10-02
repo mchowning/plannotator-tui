@@ -13,6 +13,7 @@ pub mod datadir;
 pub mod resolve;
 pub mod source;
 pub mod thread;
+pub mod unread;
 pub mod version;
 
 pub use anchor::{Anchor, CONTEXT_CHARS, Extras, Kind, SourceRange};
@@ -23,4 +24,5 @@ pub use source::{DocumentSource, Provenance};
 pub use thread::{
     AGENT, Author, FOR_KEY, FOR_MAIN, Fork, Message, THREAD_KEY, Thread, ThreadState, Turn, USER, messages,
 };
+pub use unread::{UNREAD_KEY, is_unread, set_unread};
 pub use version::blob_sha;

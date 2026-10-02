@@ -113,6 +113,9 @@ impl App {
             (KeyCode::Char('r'), KeyModifiers::CONTROL) if self.focus == Focus::Rail => {
                 return self.resolve_key_on_rail();
             }
+            (KeyCode::Char('u'), KeyModifiers::NONE) if self.focus == Focus::Rail => {
+                return self.toggle_unread_on_rail();
+            }
             (KeyCode::Char('r'), _) => return self.reload(),
             (KeyCode::Char('p'), _) => {
                 self.reopen_picker();

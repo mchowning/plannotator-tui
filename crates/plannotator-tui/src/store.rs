@@ -28,6 +28,7 @@ mod handoff;
 mod lock;
 mod review;
 mod thread;
+mod unread;
 pub(crate) use handoff::Handoff;
 use review::timestamp;
 pub(crate) use thread::ThreadKey;

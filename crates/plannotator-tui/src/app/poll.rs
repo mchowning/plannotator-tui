@@ -31,6 +31,9 @@ impl App {
         match self.open.store.refresh(&self.open.doc) {
             Ok(false) => false,
             Ok(true) => {
+                if let Err(error) = self.read_open_thread() {
+                    self.status = Some(format!("marking the thread read: {error:#}"));
+                }
                 self.clamp_rail_cursor();
                 self.refresh_review_counts();
                 self.derive_send_state();

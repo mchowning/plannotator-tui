@@ -26,6 +26,7 @@ mod send;
 mod tests;
 mod thread_view;
 mod threads;
+mod unread;
 
 use std::collections::HashMap;
 use std::ops::Range;

@@ -8,6 +8,7 @@ use std::ops::Range;
 use anyhow::{Result, bail};
 use plannotator_tui_schema::{
     AGENT, Annotation, FOR_KEY, FOR_MAIN, Fork, Kind, Reply, Resolution, Thread, ThreadState, Turn, USER,
+    set_unread,
 };
 
 use super::review::touch;
@@ -162,9 +163,13 @@ impl Store {
         })
     }
 
+    /// A turn that stops, failed or interrupted, waits on the person, so it is unread.
     pub(crate) fn set_turn(&mut self, id: &str, turn: Turn) -> Result<()> {
         self.mutate(None, |record| {
             let (annotation, mut thread) = live_thread(record, id)?;
+            if matches!(turn, Turn::Failed { .. } | Turn::Interrupted) {
+                set_unread(annotation, true);
+            }
             thread.turn = turn;
             thread.store_on(annotation)?;
             Ok(())
@@ -172,7 +177,8 @@ impl Store {
     }
 
     /// The fork's answer to every user message up to and including `through`. Ends the
-    /// turn. Returns the reply id.
+    /// turn and
+    /// marks the thread unread. Returns the reply id.
     pub(crate) fn add_agent_reply(&mut self, id: &str, through: &str, body: String) -> Result<String> {
         self.mutate(None, |record| {
             let (annotation, mut thread) = live_thread(record, id)?;
@@ -182,6 +188,7 @@ impl Store {
             thread.answered_through = Some(through.to_owned());
             thread.turn = Turn::Idle;
             thread.store_on(annotation)?;
+            set_unread(annotation, true);
             let reply = reply(id, AGENT, body)?;
             let reply_id = reply.id.clone();
             annotation.replies.push(reply);
@@ -214,7 +221,7 @@ mod tests {
     }
 
     #[test]
-    fn ctrl_r_starts_a_thread_retries_a_broken_turn_and_leaves_a_healthy_one_alone() {
+    fn ctrl_t_starts_a_thread_retries_a_broken_turn_and_leaves_a_healthy_one_alone() {
         let (root, _, doc, mut store) = fixture("ctrl-t");
         store.add(&doc, 0..3, "one".into(), Kind::Comment, "why?".into()).expect("comment");
         let id = store.annotations[0].id.clone();
