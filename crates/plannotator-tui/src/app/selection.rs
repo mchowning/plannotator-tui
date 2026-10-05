@@ -13,11 +13,6 @@ pub(super) struct Selection {
 }
 
 impl Selection {
-    #[cfg(test)]
-    pub(crate) fn anchor(&self) -> (usize, usize) {
-        self.anchor
-    }
-
     pub(super) fn start(at: (usize, usize)) -> Self {
         Self { anchor: at, head: at, dragging: true, linewise: false }
     }

@@ -8,7 +8,7 @@ use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::style::Modifier;
 
 use crate::app::review_test_support::{draw, file_app, press};
-use crate::app::{App, Focus, Mode};
+use crate::app::{App, Focus};
 
 /// A thread on "two", attached.
 fn thread_app(tag: &str) -> (std::path::PathBuf, App, String) {
@@ -237,19 +237,22 @@ fn left_arrow_on_the_rail_goes_back_to_the_document() {
 }
 
 #[test]
-fn capital_l_and_h_move_between_the_document_and_the_rail_like_the_arrows() {
+fn l_and_h_move_between_the_document_and_the_rail_like_the_arrows() {
     let (_root, mut app, _) = file_app("hl-panes");
     for quote in ["one", "three"] {
         app.add_quote_annotation(quote, Kind::Comment, quote.into()).expect("comment");
     }
     rail_text(&mut app);
     (0..3).for_each(|_| press(&mut app, 'j'));
-    press(&mut app, 'L');
+    let cursor = app.cursor;
+    press(&mut app, 'h');
+    assert_eq!((app.focus, app.roam, app.cursor), (Focus::Document, false, cursor), "h has no pane to go to");
+    press(&mut app, 'l');
     assert_eq!(app.focus, Focus::Rail);
+    assert!(!app.roam, "l switches panes instead of starting the cursor");
     assert_eq!(app.rail()[app.rail_cursor].annotation.body, "three");
-    press(&mut app, 'H');
+    press(&mut app, 'h');
     assert_eq!(app.focus, Focus::Document);
-    assert_eq!(app.mode, Mode::Browse, "H on the rail is not the archive");
 }
 
 #[test]

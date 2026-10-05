@@ -501,6 +501,7 @@ fn shift_v_selects_whole_rows_whatever_column_the_cursor_is_on() {
 
     // Mid-row, V still starts at column 0, and j extends by a whole row.
     press(&mut app, KeyCode::Esc);
+    press(&mut app, KeyCode::Char('i'));
     press(&mut app, KeyCode::Char('l'));
     press(&mut app, KeyCode::Char('l'));
     press(&mut app, KeyCode::Char('V'));
@@ -513,6 +514,7 @@ fn shift_v_selects_whole_rows_whatever_column_the_cursor_is_on() {
 fn v_and_shift_v_switch_the_selection_between_characters_and_lines() {
     let mut app = two_row_app();
     let press = |app: &mut App, code| app.handle_event(&key(code, KeyModifiers::NONE)).expect("key");
+    press(&mut app, KeyCode::Char('i'));
     press(&mut app, KeyCode::Char('l'));
     press(&mut app, KeyCode::Char('v'));
     press(&mut app, KeyCode::Char('l'));
@@ -550,22 +552,6 @@ fn a_block_key_ends_roaming() {
     app.handle_event(&key(KeyCode::Char('G'), KeyModifiers::NONE)).expect("G");
     assert!(!app.roam, "jumping to a block puts the cursor back on its first row");
     assert_eq!(app.cursor, (app.open.layout.blocks[app.selected].first_row, 0));
-}
-
-#[test]
-fn a_column_move_in_block_mode_starts_roaming_so_the_cursor_is_drawn() {
-    // Before roaming existed, h/l moved the cursor in block mode with nothing on screen,
-    // and v then anchored at a column the user never saw.
-    let mut app = app(Box::new(Discard));
-    draw(&mut app);
-    assert!(!app.roam);
-    app.handle_event(&key(KeyCode::Char('l'), KeyModifiers::NONE)).expect("l");
-    assert!(app.roam, "l in block mode enters roaming");
-    assert_eq!(app.cursor, (0, 1), "and moves the cursor by one column");
-    app.handle_event(&key(KeyCode::Right, KeyModifiers::NONE)).expect("right");
-    assert_eq!(app.cursor, (0, 2));
-    app.handle_event(&key(KeyCode::Char('v'), KeyModifiers::NONE)).expect("v");
-    assert_eq!(app.selection.map(|s| s.anchor()), Some((0, 2)), "v anchors where the cursor is shown");
 }
 
 /// A folder whose only Markdown lives beside a hidden folder and a `.git` full of it.
