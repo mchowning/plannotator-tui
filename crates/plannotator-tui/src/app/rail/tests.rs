@@ -232,3 +232,21 @@ fn a_comment_box_title_does_not_show_the_annotation_id() {
     let screen = rail_text(&mut app);
     assert!(!screen.contains(&tail), "the id tail {tail} is internal\n{screen}");
 }
+
+#[test]
+fn leaving_the_rail_puts_the_cursor_on_the_passage_of_the_note_under_the_cursor() {
+    let (_root, mut app, _) = file_app("rail-back-to-note");
+    app.add_block_annotation(3, Kind::Comment, "three".into()).expect("comment");
+    app.add_block_annotation(0, Kind::Comment, "Plan".into()).expect("comment");
+    rail_text(&mut app);
+    (0..3).for_each(|_| press(&mut app, 'j'));
+    press(&mut app, 'i');
+    app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Tab))).expect("tab");
+    assert_eq!(app.rail()[app.rail_cursor].annotation.body, "three");
+    press(&mut app, 'k');
+    assert_eq!(app.rail()[app.rail_cursor].annotation.body, "Plan");
+    app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Esc))).expect("esc");
+    assert_eq!(app.focus, Focus::Document);
+    assert_eq!(app.selected, 0, "the heading is selected");
+    assert_eq!(app.cursor.0, app.open.layout.blocks[0].first_row, "the cursor is on the heading");
+}

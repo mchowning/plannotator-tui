@@ -218,8 +218,8 @@ impl App {
 
     /// Select, in the document, where the rail card under the cursor is anchored.
     fn select_rail_card_passage(&mut self) {
-        if let Some(start) = self.rail().get(self.rail_cursor).and_then(|e| e.range.map(|r| r.start)) {
-            self.select_offset(start);
+        if let Some(range) = self.rail().get(self.rail_cursor).and_then(|e| e.range.cloned()) {
+            self.select_range(&range);
         }
     }
 

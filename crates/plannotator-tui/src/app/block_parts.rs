@@ -78,11 +78,13 @@ impl App {
         }
     }
 
-    /// Select `offset`'s block with the cursor on its row, as the rail does for a note.
-    pub(super) fn select_offset(&mut self, offset: usize) {
-        let Some(block) = self.open.doc.block_containing(offset) else { return };
+    /// Select the block where `range` starts, with the cursor on its first row showing
+    /// any of `range`, as the rail does for a note. The start itself may be unrendered
+    /// markup, such as a heading's `#`.
+    pub(super) fn select_range(&mut self, range: &Range<usize>) {
+        let Some(block) = self.open.doc.block_containing(range.start) else { return };
         self.selected = block;
-        if let Some(row) = self.open.layout.first_row_in_range(block, &(offset..offset + 1)) {
+        if let Some(row) = self.open.layout.first_row_in_range(block, range) {
             self.cursor = (row, 0);
         }
         self.ensure_selected_visible();
