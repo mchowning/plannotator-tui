@@ -100,7 +100,8 @@ impl App {
             (KeyCode::Char('U'), _) if self.is_file_review() => {
                 return self.run_review_action(ReviewAction::Undo);
             }
-            (KeyCode::Char('H'), _) if self.is_file_review() => {
+            // On the rail `H` goes back to the document instead.
+            (KeyCode::Char('H'), _) if self.is_file_review() && self.focus != Focus::Rail => {
                 return self.run_review_action(ReviewAction::Archive);
             }
             (KeyCode::Char('t'), KeyModifiers::CONTROL) if self.focus == Focus::Rail => {
@@ -210,7 +211,7 @@ impl App {
             KeyCode::Char('x') | KeyCode::Delete => self.ask_remove_selected_note(),
             KeyCode::Char('n') => self.step_to_unread(true),
             KeyCode::Char('N') => self.step_to_unread(false),
-            KeyCode::Esc | KeyCode::Left => self.focus = Focus::Document,
+            KeyCode::Esc | KeyCode::Left | KeyCode::Char('H') => self.focus = Focus::Document,
             _ => {}
         }
         self.select_rail_card_passage();
@@ -275,7 +276,7 @@ impl App {
             (KeyCode::Char('j') | KeyCode::Down, _) => self.step(1),
             (KeyCode::Char('k') | KeyCode::Up, _) => self.step(-1),
             // In block mode the arrows are for panes, not the cursor; left has none to go to.
-            (KeyCode::Right, _) if !self.rail().is_empty() => self.focus_rail(),
+            (KeyCode::Right | KeyCode::Char('L'), _) if !self.rail().is_empty() => self.focus_rail(),
             // A cursor that moves must be visible, so a column move in block mode is a
             // roaming move: the same key, with the cursor drawn.
             (KeyCode::Char('h' | 'l'), _) => {
