@@ -303,3 +303,22 @@ fn a_rail_card_for_a_table_row_marks_only_that_row() {
     .expect("click");
     assert_eq!(gutter_marked(&mut app), ["│ Ann  │ 30  │"], "clicking a card marks its row");
 }
+
+#[test]
+fn leaving_the_rail_selects_the_table_row_its_note_is_on() {
+    let mut app = table_app();
+    highlighted_and_footer(&mut app);
+    (0..3).for_each(|_| key(&mut app, KeyCode::Char('j')));
+    key(&mut app, KeyCode::Char('c'));
+    key(&mut app, KeyCode::Char('x'));
+    key(&mut app, KeyCode::Enter);
+    assert_eq!(app.rail().len(), 1, "the row is commented");
+    key(&mut app, KeyCode::Char('j'));
+    app.add_quote_annotation("after", Kind::Comment, "y".into()).expect("comment");
+    key(&mut app, KeyCode::Tab);
+    key(&mut app, KeyCode::Char('k'));
+    key(&mut app, KeyCode::Esc);
+    assert_eq!(app.focus, Focus::Document);
+    let (highlighted, _) = highlighted_and_footer(&mut app);
+    assert_eq!(highlighted, ["│ Bob  │ 41  │"]);
+}
