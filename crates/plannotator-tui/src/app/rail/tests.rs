@@ -115,6 +115,19 @@ fn a_regular_comment_box_is_unchanged() {
 }
 
 #[test]
+fn a_comment_box_collapses_to_one_row_unless_selected() {
+    let (_root, mut app, _) = file_app("rail-collapse");
+    app.add_quote_annotation("two", Kind::Comment, "Why two?\nsecond line".into()).expect("comment");
+    let screen = rail_text(&mut app);
+    assert!(screen.contains("Why two?…"), "one row, marked as cut short\n{screen}");
+    assert!(!screen.contains("second line"), "collapsed to one row\n{screen}");
+
+    app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Tab))).expect("tab");
+    let screen = rail_text(&mut app);
+    assert!(screen.contains("second line") && !screen.contains('…'), "selected shows it all\n{screen}");
+}
+
+#[test]
 fn a_thread_box_previews_a_long_reply_in_a_few_lines_and_keeps_its_line_breaks() {
     let (_root, mut app, id) = thread_app("rail-preview");
     let long = (1..=12).map(|i| format!("point {i}")).collect::<Vec<_>>().join("\n");

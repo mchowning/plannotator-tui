@@ -120,7 +120,23 @@ impl App {
             .reduce(|a, b| a.start.min(b.start)..a.end.max(b.end))
     }
 
-    fn bubble_lines(entry: &RailEntry<'_>, width: usize) -> Vec<Line<'static>> {
+    /// A box shown as one dim row of `body`, with room kept for the `…` when it is cut short.
+    fn collapsed_line(body: &str, width: usize) -> Option<Line<'static>> {
+        let body = body.trim();
+        let first_line = body.lines().next().unwrap_or("");
+        let rows = wrap_line(&Line::from(first_line.to_owned()), &[], width.saturating_sub(1));
+        let cut = rows.len() > 1 || first_line.len() < body.len();
+        rows.into_iter().next().map(|first| {
+            let mut row = first.line.style(Style::new().dim());
+            if cut {
+                row.push_span(Span::raw("…").dim());
+            }
+            row
+        })
+    }
+
+    /// A comment not `selected` collapses like a resolved thread.
+    fn bubble_lines(entry: &RailEntry<'_>, width: usize, selected: bool) -> Vec<Line<'static>> {
         let wrapped = |text: &str, style: Style| -> Vec<Line<'static>> {
             wrap_line(&Line::from(text.to_owned()), &[], width)
                 .into_iter()
@@ -131,6 +147,8 @@ impl App {
             let kind = entry.annotation.anchor.kind();
             return if entry.annotation.body.is_empty() {
                 wrapped(label(kind), Style::new().dim().italic())
+            } else if !selected {
+                Self::collapsed_line(&entry.annotation.body, width).into_iter().collect()
             } else {
                 wrapped(&entry.annotation.body, Style::new())
             };
@@ -140,18 +158,8 @@ impl App {
             lines.extend(wrapped(entry.annotation.anchor.rendered(), Style::new().dim().crossed_out()));
         }
         if thread.resolved {
-            // Collapsed to one row of the first message, with room kept for the `…`.
-            let body = entry.annotation.body.trim();
-            let first_line = body.lines().next().unwrap_or("");
-            let rows = wrap_line(&Line::from(first_line.to_owned()), &[], width.saturating_sub(1));
-            let cut = rows.len() > 1 || first_line.len() < body.len();
-            if let Some(first) = rows.into_iter().next() {
-                let mut row = first.line.style(Style::new().dim());
-                if cut {
-                    row.push_span(Span::raw("…").dim());
-                }
-                lines.push(row);
-            }
+            // Collapsed to one row of the first message.
+            lines.extend(Self::collapsed_line(&entry.annotation.body, width));
         } else if let Some(latest) = messages(entry.annotation).last() {
             let who = match latest.author {
                 Author::User => "you",
@@ -204,16 +212,16 @@ impl App {
                 break;
             }
             let kind = entry.annotation.anchor.kind();
-            let lines = Self::bubble_lines(entry, usize::from(rail.width.saturating_sub(4)));
-            let height = (lines.len() as u16 + 2).min(rail.bottom().saturating_sub(y));
-            if height < 3 {
-                break;
-            }
             let highlighted = match (&part, entry.range) {
                 _ if rail_focused => index == self.rail_cursor,
                 (Some(part), Some(range)) => part.contains(&range.start),
                 _ => block == Some(self.selected),
             };
+            let lines = Self::bubble_lines(entry, usize::from(rail.width.saturating_sub(4)), highlighted);
+            let height = (lines.len() as u16 + 2).min(rail.bottom().saturating_sub(y));
+            if height < 3 {
+                break;
+            }
             let unread = is_unread(entry.annotation);
             let border = match (highlighted, unread) {
                 (true, _) => Style::new().fg(accent(kind)),
@@ -234,7 +242,7 @@ impl App {
             };
             let title = Span::styled(
                 format!(" {}{thread}{sent} ", glyph(kind)),
-                match (unread, resolved) {
+                match (unread, resolved || (entry.thread.is_none() && !highlighted)) {
                     (true, _) => Style::new().fg(UNREAD),
                     (false, true) => Style::new().fg(Color::DarkGray),
                     (false, false) => Style::new().fg(accent(kind)),
