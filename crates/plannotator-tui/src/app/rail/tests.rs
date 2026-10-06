@@ -34,6 +34,13 @@ fn a_thread_box_shows_its_latest_message() {
 }
 
 #[test]
+fn a_thread_box_is_marked_by_its_glyph_not_a_label() {
+    let (_root, mut app, _) = thread_app("rail-thread-glyph");
+    let screen = rail_text(&mut app);
+    assert!(screen.contains("🧵") && !screen.contains("💬") && !screen.contains("thread"), "{screen}");
+}
+
+#[test]
 fn a_running_turn_shows_working() {
     let (_root, mut app, id) = thread_app("rail-working");
     app.open.store.set_turn(&id, Turn::Running).expect("turn");

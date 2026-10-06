@@ -108,14 +108,14 @@ fn screen(app: &mut App) -> ratatui::buffer::Buffer {
     terminal.backend().buffer().clone()
 }
 
-/// The left border cell and the colour of the title's "thread" of `id`'s card.
+/// The left border cell and the colour of the title's 🧵 of `id`'s card.
 fn card_colours(app: &mut App, id: &str) -> (Color, Color) {
     let buffer = screen(app);
     let rect = app.geometry.bubbles.iter().find(|(_, b)| b == id).expect("drawn").0;
     let border = buffer.cell((rect.x, rect.y + 1)).expect("border").fg;
     let title = (rect.x..rect.right())
         .filter_map(|x| buffer.cell((x, rect.y)))
-        .find(|c| c.symbol() == "t")
+        .find(|c| c.symbol() == "🧵")
         .expect("title")
         .fg;
     (border, title)

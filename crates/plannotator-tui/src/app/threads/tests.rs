@@ -207,7 +207,7 @@ fn a_resolved_box_is_titled_resolved_and_shows_one_row_of_the_first_message() {
     let (_root, mut app, _) = answered_app("resolve-box");
     ctrl_r(&mut app);
     let screen = crate::app::review_test_support::draw(&mut app, 160, 45);
-    assert!(screen.contains("· thread · resolved"), "{screen}");
+    assert!(screen.contains("🧵") && screen.contains(" · resolved ─"), "{screen}");
     assert!(screen.contains("Why two?…"), "one row, marked as cut short\n{screen}");
     assert!(!screen.contains("second line"), "collapsed to one row\n{screen}");
     assert!(!screen.contains("Two follows one."), "the latest message is hidden\n{screen}");
