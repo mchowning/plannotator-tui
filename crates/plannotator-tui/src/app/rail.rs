@@ -230,18 +230,14 @@ impl App {
             };
             let border = if rail_focused && index == self.rail_cursor { border.bold() } else { border };
             let resolved = entry.thread.as_ref().is_some_and(|t| t.resolved);
-            let (icon, state) = match &entry.thread {
-                Some(_) if resolved => ("🧵", " · resolved"),
-                Some(_) => ("🧵", ""),
-                None => (glyph(kind), ""),
-            };
+            let icon = if entry.thread.is_some() { "🧵" } else { glyph(kind) };
             let sent = if self.is_file_review() && !self.open.store.is_pending(entry.annotation) {
                 " · sent"
             } else {
                 ""
             };
             let title = Span::styled(
-                format!(" {icon}{state}{sent} "),
+                format!(" {icon}{sent} "),
                 match (unread, resolved || (entry.thread.is_none() && !highlighted)) {
                     (true, _) => Style::new().fg(UNREAD),
                     (false, true) => Style::new().fg(Color::DarkGray),

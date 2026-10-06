@@ -3,7 +3,10 @@
 use std::path::PathBuf;
 
 use plannotator_tui_schema::{Kind, Turn};
+use ratatui::Terminal;
+use ratatui::backend::TestBackend;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use ratatui::style::Color;
 use serde_json::Value;
 
 use crate::app::review_test_support::{file_app, folder_app, press};
@@ -202,19 +205,30 @@ fn ctrl_r_on_a_rail_thread_resolves_it_and_again_unresolves_it() {
     assert_eq!(app.status.as_deref(), Some("thread unresolved"));
 }
 
+/// The colour of the 🧵 in the rail.
+fn thread_glyph_colour(app: &mut App) -> Color {
+    let mut terminal = Terminal::new(TestBackend::new(160, 45)).expect("terminal");
+    terminal.draw(|frame| app.draw(frame)).expect("draw");
+    terminal.backend().buffer().content().iter().find(|c| c.symbol() == "🧵").expect("glyph").fg
+}
+
 #[test]
-fn a_resolved_box_is_titled_resolved_and_shows_one_row_of_the_first_message() {
+fn a_resolved_box_is_dimmed_not_labelled_and_shows_one_row_of_the_first_message() {
     let (_root, mut app, _) = answered_app("resolve-box");
+    app.open.store.set_unread(&app.open.store.placed()[0].annotation.id.clone(), false).expect("read");
+    assert_ne!(thread_glyph_colour(&mut app), Color::DarkGray);
     ctrl_r(&mut app);
+    assert_eq!(thread_glyph_colour(&mut app), Color::DarkGray);
     let screen = crate::app::review_test_support::draw(&mut app, 160, 45);
-    assert!(screen.contains("🧵") && screen.contains(" · resolved ─"), "{screen}");
+    assert!(!screen.contains("· resolved"), "{screen}");
     assert!(screen.contains("Why two?…"), "one row, marked as cut short\n{screen}");
     assert!(!screen.contains("second line"), "collapsed to one row\n{screen}");
     assert!(!screen.contains("Two follows one."), "the latest message is hidden\n{screen}");
 
     ctrl_r(&mut app);
+    assert_ne!(thread_glyph_colour(&mut app), Color::DarkGray);
     let screen = crate::app::review_test_support::draw(&mut app, 160, 45);
-    assert!(screen.contains("Two follows one.") && !screen.contains("· resolved"), "{screen}");
+    assert!(screen.contains("Two follows one."), "{screen}");
 }
 
 #[test]
