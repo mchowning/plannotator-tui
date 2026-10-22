@@ -283,15 +283,16 @@ impl App {
             (KeyCode::Char('G') | KeyCode::End, _) => {
                 self.select_block(self.open.doc.blocks.len().saturating_sub(1));
             }
-            (KeyCode::Char('c') | KeyCode::Enter, _) => {
-                // No selection: comment on the selected table row, else the whole block.
+            (KeyCode::Char('a' | 'c') | KeyCode::Enter, _) => {
+                let kind = if key.code == KeyCode::Char('a') { Kind::LooksGood } else { Kind::Comment };
+                // No selection: annotate the selected table row, else the whole block.
                 let range = match self.selected_part() {
                     Some((_, range)) => Some(range),
                     None => self.open.doc.blocks.get(self.selected).map(|b| b.range.clone()),
                 };
                 if let Some(range) = range {
                     self.pending = Some(Pending { range, at: (self.selected_rows().start, 0) });
-                    self.act(Kind::Comment)?;
+                    self.act(kind)?;
                 }
             }
             (KeyCode::Char('x'), _) => self.ask_remove_in_block(),

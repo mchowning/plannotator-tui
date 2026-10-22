@@ -439,6 +439,19 @@ fn pasting_into_the_comment_box_keeps_newlines() {
 }
 
 #[test]
+fn a_on_a_block_approves_it_without_a_comment_box() {
+    let mut app = app(Box::new(Discard));
+    draw(&mut app);
+    app.handle_event(&key(KeyCode::Char('j'), KeyModifiers::NONE)).expect("j");
+    app.handle_event(&key(KeyCode::Char('a'), KeyModifiers::NONE)).expect("a");
+    assert_eq!(app.mode, Mode::Browse, "no comment box");
+    let placed = app.open.store.placed();
+    let note = &placed.last().expect("annotation").annotation;
+    assert_eq!((note.anchor.kind(), note.body.as_str()), (Kind::LooksGood, ""));
+    assert_eq!(note.anchor.original_text, "first thing");
+}
+
+#[test]
 fn roaming_moves_by_row_so_a_selection_can_start_mid_block() {
     // A paragraph with a hard break (two rows), then a list: in block mode `j` from the top lands on "- one",
     // roaming lands on "second line" of the same block.
