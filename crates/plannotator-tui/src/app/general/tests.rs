@@ -98,3 +98,58 @@ fn a_general_comment_cannot_become_a_thread() {
     assert!(app.open.store.threads().expect("threads").is_empty());
     std::fs::remove_dir_all(root).expect("cleanup");
 }
+
+#[test]
+fn c_at_the_quit_question_writes_the_general_comment_then_sends_and_quits() {
+    let (root, mut app, delivery) = file_app("quit");
+    app.add_quote_annotation("two", Kind::Comment, "which two?".into()).expect("note");
+    press(&mut app, 'q');
+    assert_eq!(app.mode, Mode::ConfirmQuit);
+    press(&mut app, 'c');
+    type_text(&mut app, "overall fine");
+    key(&mut app, KeyCode::Enter);
+    let sent = delivery.calls.borrow()[0].clone();
+    assert!(sent.contains("## General feedback\n> overall fine") && sent.contains("which two?"), "{sent}");
+    assert!(app.quit);
+    std::fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
+fn escape_from_the_quit_comment_returns_to_the_question() {
+    let (root, mut app, delivery) = file_app("quit-cancel");
+    app.add_quote_annotation("two", Kind::Comment, "which two?".into()).expect("note");
+    press(&mut app, 'q');
+    press(&mut app, 'c');
+    type_text(&mut app, "never mind");
+    key(&mut app, KeyCode::Esc);
+    assert_eq!(app.mode, Mode::ConfirmQuit);
+    assert!(app.open.store.general().is_none());
+    assert!(delivery.calls.borrow().is_empty() && !app.quit);
+    std::fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
+fn c_at_the_attached_quit_question_hands_the_general_comment_to_pi() {
+    let (root, mut app, _) = file_app("quit-attached");
+    app.attach_agent_session("session-1".into());
+    app.add_quote_annotation("two", Kind::Comment, "which two?".into()).expect("note");
+    press(&mut app, 'q');
+    press(&mut app, 'c');
+    type_text(&mut app, "overall fine");
+    key(&mut app, KeyCode::Enter);
+    let record = std::fs::read_to_string(app.open.store.record_path().expect("record")).expect("read");
+    assert!(record.contains("## General feedback\\n> overall fine"), "{record}");
+    assert!(app.quit);
+    std::fs::remove_dir_all(root).expect("cleanup");
+}
+
+#[test]
+fn the_quit_question_offers_c() {
+    let (root, mut app, _) = file_app("quit-footer");
+    app.add_quote_annotation("two", Kind::Comment, "which two?".into()).expect("note");
+    press(&mut app, 'q');
+    assert!(draw(&mut app, 120, 24).contains("c + comment"));
+    app.attach_agent_session("session-1".into());
+    assert!(draw(&mut app, 120, 24).contains("c + comment"));
+    std::fs::remove_dir_all(root).expect("cleanup");
+}

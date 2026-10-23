@@ -145,7 +145,10 @@ fn quitting_with_unsent_feedback_asks_before_it_quits() {
     assert!(!app.quit, "the question is asked instead of quitting");
     let rows = draw(&mut app);
     let footer = row(&rows, 19);
-    assert!(footer.contains("before quitting? y send · n quit · esc cancel"), "footer was {footer:?}");
+    assert!(
+        footer.contains("send feedback to claude in w1:p1? y send · c + comment · n quit · esc cancel"),
+        "footer was {footer:?}"
+    );
     app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Char('n')))).expect("n");
     assert!(app.quit, "n quits without sending");
     assert_eq!(app.send_state, SendState::Ready, "nothing was sent");

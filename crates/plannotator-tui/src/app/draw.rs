@@ -106,7 +106,7 @@ impl App {
         match &self.mode {
             Mode::Compose => self.draw_compose(frame, &self.compose_title("comment")),
             Mode::Edit(_) => self.draw_compose(frame, &self.compose_title("edit")),
-            Mode::General => self.draw_compose(frame, &self.compose_title("general")),
+            Mode::General { .. } => self.draw_compose(frame, &self.compose_title("general")),
             Mode::Browse if self.pending.is_some() => self.draw_toolbar(frame),
             Mode::Pick => self.draw_pick(frame),
             Mode::Archive => self.draw_archive(frame),
@@ -384,7 +384,7 @@ impl App {
             // The question owns the footer: the browse help would name keys that are not
             // live while it is up.
             let question = format!(
-                " send feedback to {} before quitting? y send · n quit · esc cancel",
+                " send feedback to {}? y send · c + comment · n quit · esc cancel",
                 self.delivery.describe()
             );
             frame.render_widget(Paragraph::new(Line::from(Span::raw(question).bold())), area);

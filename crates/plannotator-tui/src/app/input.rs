@@ -27,7 +27,7 @@ impl App {
                     Ok(())
                 }
                 Mode::ReviewMenu => self.menu_key(*key),
-                Mode::Compose | Mode::Edit(_) | Mode::General => self.text_key(*key),
+                Mode::Compose | Mode::Edit(_) | Mode::General { .. } => self.text_key(*key),
                 Mode::Thread(_) => self.thread_panel_key(*key),
                 Mode::Keys => {
                     self.keys_key(*key);
@@ -41,7 +41,10 @@ impl App {
             // A paste lands in the comment box verbatim, newlines included; anywhere else
             // it is ignored rather than replayed as keystrokes.
             Event::Paste(text)
-                if matches!(self.mode, Mode::Compose | Mode::Edit(_) | Mode::General | Mode::Thread(_)) =>
+                if matches!(
+                    self.mode,
+                    Mode::Compose | Mode::Edit(_) | Mode::General { .. } | Mode::Thread(_)
+                ) =>
             {
                 self.compose.insert_text(text);
                 Ok(())
@@ -82,7 +85,7 @@ impl App {
             }
             (KeyCode::Char('E'), _) => return self.send_feedback(),
             (KeyCode::Char('C'), _) => {
-                self.open_general();
+                self.open_general(false);
                 return Ok(());
             }
             // A reply review sends every note, so one the agent already has closes like `q`.
@@ -150,6 +153,7 @@ impl App {
                 self.mode = Mode::Browse;
                 self.send_and_quit()?;
             }
+            KeyCode::Char('c' | 'C') => self.open_general(true),
             KeyCode::Char('n' | 'N') => {
                 self.mode = Mode::Browse;
                 self.quit = true;
@@ -418,13 +422,16 @@ impl App {
 
     fn text_key(&mut self, key: KeyEvent) -> Result<()> {
         match self.compose.handle_key(key) {
-            ComposeAction::Cancel => self.mode = Mode::Browse,
+            ComposeAction::Cancel => {
+                let back_to_question = self.mode == Mode::General { then_send: true };
+                self.mode = if back_to_question { Mode::ConfirmQuit } else { Mode::Browse };
+            }
             ComposeAction::SaveThread => match &self.mode {
                 Mode::Compose => self.save_compose_as_thread()?,
                 Mode::Edit(id) => self.save_edit_as_thread(&id.clone())?,
                 _ => {}
             },
-            ComposeAction::Save if self.mode == Mode::General => self.save_general()?,
+            ComposeAction::Save if matches!(self.mode, Mode::General { .. }) => self.save_general()?,
             ComposeAction::Save => {
                 let body = self.compose.value().trim().to_owned();
                 match std::mem::replace(&mut self.mode, Mode::Browse) {
@@ -437,7 +444,7 @@ impl App {
                         }
                     }
                     Mode::Compose
-                    | Mode::General
+                    | Mode::General { .. }
                     | Mode::Browse
                     | Mode::ConfirmQuit
                     | Mode::ConfirmRemove(_)

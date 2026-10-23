@@ -63,8 +63,11 @@ enum Mode {
     Compose,
     /// Editing the body of an existing annotation (by id).
     Edit(String),
-    /// Writing the general comment, about the whole document.
-    General,
+    /// Writing the general comment, about the whole document. `then_send` when it came
+    /// from the quit question: saving also sends and quits, and Esc goes back to the question.
+    General {
+        then_send: bool,
+    },
     /// Quit was asked for while feedback is unsent; the footer asks first.
     ConfirmQuit,
     /// `x` was pressed; the footer asks before anything is removed.

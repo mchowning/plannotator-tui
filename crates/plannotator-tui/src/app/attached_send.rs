@@ -23,7 +23,7 @@ impl App {
         let running =
             self.open.store.threads().unwrap_or_default().iter().any(|t| t.thread.turn == Turn::Running);
         let abort = if running { " · running turns will be aborted" } else { "" };
-        format!(" send this review to pi? y send · n keep for later · esc stay{abort}")
+        format!(" send this review to pi? y send · c + comment · n keep for later · esc stay{abort}")
     }
 
     /// Commit the send, then close. A refusal (an earlier review still undelivered, or the

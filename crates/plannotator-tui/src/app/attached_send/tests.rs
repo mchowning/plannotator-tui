@@ -71,7 +71,10 @@ fn q_in_an_attached_review_asks_to_send_and_esc_stays() {
     press(&mut app, 'q');
     assert_eq!(app.mode, Mode::ConfirmQuit);
     let screen = draw(&mut app, 160, 45);
-    assert!(screen.contains("send this review to pi? y send · n keep for later · esc stay"), "{screen}");
+    assert!(
+        screen.contains("send this review to pi? y send · c + comment · n keep for later · esc stay"),
+        "{screen}"
+    );
     assert!(!screen.contains("aborted"));
     key(&mut app, KeyCode::Esc);
     assert_eq!(app.mode, Mode::Browse);

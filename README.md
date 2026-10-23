@@ -55,7 +55,8 @@ feedback to the clipboard as numbered annotations (`# Annotations on plan.md`, `
 
 `C` writes a general comment about the whole document or reply instead of one passage. There
 is one per document: `C` again reopens it. It sits at the top of the notes and is sent first,
-as `## General feedback`.
+as `## General feedback`. When quitting asks whether to send, `c` opens the same box, and
+saving it sends everything and quits; `Esc` goes back to the question.
 
 Copies go to the clipboard as OSC 52, which is the terminal you are looking at, so on Herdr 0.9.0
 they reach your own machine even when the app runs on a remote server; Herdr Annotate's global
