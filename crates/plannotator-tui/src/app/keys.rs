@@ -79,6 +79,7 @@ const GROUPS: [Group; 8] = [
 const KEY_LIST: &[(Group, &str, &str, When)] = &[
     (Group::Anywhere, "tab", "switch pane", When::Always),
     (Group::Anywhere, "?", "this list", When::Always),
+    (Group::Anywhere, "C", "general comment on the whole document", When::Always),
     (Group::Anywhere, "E", "send new notes", When::Always),
     (Group::Anywhere, "S", "send every note and quit", When::Reply),
     (Group::Anywhere, "m", "review menu", When::FileReview),

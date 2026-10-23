@@ -28,6 +28,8 @@ pub enum Kind {
     Comment,
     LooksGood,
     Delete,
+    /// About the whole document, not a passage. The anchor carries no text.
+    General,
 }
 
 /// A byte range into the raw markdown, pinned to the document version it was made against.
@@ -106,6 +108,11 @@ impl Anchor {
         }
     }
 
+    /// An anchor for a note about the whole document.
+    pub fn general() -> Self {
+        Self { plannotator_tui: Some(Extras { kind: Kind::General, ..Extras::default() }), ..Self::default() }
+    }
+
     /// The text the web client searches for, whichever key a client wrote.
     pub fn rendered(&self) -> &str {
         if self.original_text.is_empty() { &self.quote } else { &self.original_text }
@@ -180,6 +187,14 @@ mod tests {
         assert_eq!(anchor.rendered(), "the quick brown fox");
         assert_eq!(anchor.kind(), Kind::Comment);
         assert_eq!(serde_json::to_value(&anchor).expect("serializable"), web);
+    }
+
+    #[test]
+    fn a_general_anchor_has_no_quote_and_says_so_in_its_kind() {
+        let json = serde_json::to_value(Anchor::general()).expect("serializable");
+        assert_eq!(json, serde_json::json!({"plannotator_tui": {"kind": "general"}}));
+        let back: Anchor = serde_json::from_value(json).expect("parses");
+        assert_eq!(back.kind(), Kind::General);
     }
 
     #[test]

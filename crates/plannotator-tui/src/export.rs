@@ -1,7 +1,7 @@
 //! Feedback export: annotations as numbered Markdown a coding agent reads without a schema.
 //!
-//! `# Annotations on <name>`, then one `## Annotation N (line X)` per annotation in document
-//! order: what kind of note it is, the quoted text, and the body as a blockquote. Deleted
+//! `# Annotations on <name>`, then the general comment about the whole document if there is
+//! one, then one `## Annotation N (line X)` per annotation in document order: what kind of note it is, the quoted text, and the body as a blockquote. Deleted
 //! text is fenced so quoted markdown cannot escape. A thread is its passage and its
 //! messages labeled by author; one whose passage is gone comes last, marked as such.
 
@@ -25,15 +25,24 @@ pub(crate) struct Entry<'a> {
 /// `feedback_with_detached`.
 #[cfg(test)]
 pub(crate) fn feedback(name: &str, entries: &[Entry<'_>]) -> String {
-    feedback_with_detached(name, entries, &[])
+    feedback_with_detached(name, None, entries, &[])
 }
 
-/// `feedback`, followed by threads whose passage no longer resolves.
-pub(crate) fn feedback_with_detached(name: &str, entries: &[Entry<'_>], detached: &[&Annotation]) -> String {
-    if entries.is_empty() && detached.is_empty() {
+/// `feedback`, led by the general comment and followed by threads whose passage no longer
+/// resolves.
+pub(crate) fn feedback_with_detached(
+    name: &str,
+    general: Option<&Annotation>,
+    entries: &[Entry<'_>],
+    detached: &[&Annotation],
+) -> String {
+    if general.is_none() && entries.is_empty() && detached.is_empty() {
         return "No annotations.".to_owned();
     }
     let mut out = format!("# Annotations on {name}\n\n");
+    if let Some(general) = general {
+        let _ = writeln!(out, "## General feedback\n> {}\n", quote_lines(general.body.trim()));
+    }
     for (i, entry) in entries.iter().enumerate() {
         let quoted = entry.quote.as_str();
         let line_label = match entry.lines {
@@ -59,7 +68,7 @@ pub(crate) fn feedback_with_detached(name: &str, entries: &[Entry<'_>], detached
                     let _ = writeln!(out, "> {}", quote_lines(body));
                 }
             }
-            Kind::Comment => {
+            Kind::Comment | Kind::General => {
                 let _ = writeln!(out, "Comment on: \"{}\"", single_line(quoted));
                 let _ = writeln!(out, "> {}", quote_lines(body));
             }
@@ -169,6 +178,35 @@ mod tests {
             "# Annotations on plan.md\n\n\
              ## Annotation 1 (line 3)\nComment on: \"login page\"\n> Which page?\n> Be specific.\n\n\
              ## Annotation 2 (line 5)\nRemove this:\n```\nDrop the `legacy` path.\n```\n> I don't want this.\n\n"
+        );
+    }
+
+    #[test]
+    fn general_feedback_comes_before_the_numbered_annotations() {
+        let source = "# Title\n\nShip the login page by Friday.\n";
+        let (comment, range) = annotation(source, "login page", Kind::Comment, "Which page?");
+        let general =
+            Annotation { anchor: Anchor::general(), body: "Too long.\nCut it.".into(), ..comment.clone() };
+        let entries = [Entry {
+            annotation: &comment,
+            lines: Some(line_span(source, &range)),
+            quote: source[range].to_owned(),
+        }];
+        assert_eq!(
+            feedback_with_detached("plan.md", Some(&general), &entries, &[]),
+            "# Annotations on plan.md\n\n\
+             ## General feedback\n> Too long.\n> Cut it.\n\n\
+             ## Annotation 1 (line 3)\nComment on: \"login page\"\n> Which page?\n\n"
+        );
+    }
+
+    #[test]
+    fn general_feedback_alone_is_still_feedback() {
+        let (comment, _) = annotation("text\n", "text", Kind::Comment, "");
+        let general = Annotation { anchor: Anchor::general(), body: "Fine overall.".into(), ..comment };
+        assert_eq!(
+            feedback_with_detached("plan.md", Some(&general), &[], &[]),
+            "# Annotations on plan.md\n\n## General feedback\n> Fine overall.\n\n"
         );
     }
 

@@ -186,7 +186,10 @@ impl App {
         if self.is_file_review() {
             self.review_counts().pending
         } else {
-            self.replies().iter().map(|(_, open)| open.store.placed().len()).sum()
+            self.replies()
+                .iter()
+                .map(|(_, open)| open.store.placed().len() + usize::from(open.store.general().is_some()))
+                .sum()
         }
     }
 

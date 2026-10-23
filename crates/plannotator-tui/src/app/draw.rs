@@ -31,13 +31,14 @@ pub(super) fn accent(kind: Kind) -> Color {
         Kind::Comment => Color::Yellow,
         Kind::LooksGood => Color::Green,
         Kind::Delete => Color::Red,
+        Kind::General => Color::Magenta,
     }
 }
 
 /// Painting precedence when annotations overlap a cell.
 fn priority(kind: Kind) -> u8 {
     match kind {
-        Kind::Comment => 0,
+        Kind::Comment | Kind::General => 0,
         Kind::LooksGood => 1,
         Kind::Delete => 2,
     }
@@ -105,6 +106,7 @@ impl App {
         match &self.mode {
             Mode::Compose => self.draw_compose(frame, &self.compose_title("comment")),
             Mode::Edit(_) => self.draw_compose(frame, &self.compose_title("edit")),
+            Mode::General => self.draw_compose(frame, &self.compose_title("general")),
             Mode::Browse if self.pending.is_some() => self.draw_toolbar(frame),
             Mode::Pick => self.draw_pick(frame),
             Mode::Archive => self.draw_archive(frame),
@@ -214,7 +216,7 @@ impl App {
                 let Some(kind) = kind else { continue };
                 row_has_annotation = true;
                 let style = match kind {
-                    Kind::Comment => Style::new().bg(palette().comment_bg),
+                    Kind::Comment | Kind::General => Style::new().bg(palette().comment_bg),
                     Kind::LooksGood => Style::new().bg(palette().approve_bg),
                     Kind::Delete => {
                         Style::new().fg(Color::Red).add_modifier(Modifier::CROSSED_OUT | Modifier::DIM)
@@ -315,12 +317,16 @@ impl App {
     /// Worded short so the longest title still fits [`COMPOSE_WIDTH`] whole.
     fn compose_title(&self, verb: &str) -> String {
         let newline = if self.shift_enter { "shift+\u{23ce} newline" } else { "a-\u{23ce} newline" };
-        let thread =
-            if matches!(self.mode, Mode::Compose | Mode::Edit(_)) && self.attached_session().is_some() {
-                " \u{b7} c-t thread"
-            } else {
-                ""
-            };
+        let thread = if self.attached_session().is_some()
+            && match &self.mode {
+                Mode::Compose => true,
+                Mode::Edit(id) => !self.is_general(id),
+                _ => false,
+            } {
+            " \u{b7} c-t thread"
+        } else {
+            ""
+        };
         format!(" {verb} \u{b7} \u{23ce} save{thread} \u{b7} {newline} \u{b7} esc cancel ")
     }
 

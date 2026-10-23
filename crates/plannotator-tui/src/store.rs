@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::doc::Document;
 
+mod general;
 mod handoff;
 mod lock;
 mod review;
@@ -342,7 +343,7 @@ impl Store {
             .zip(&self.resolved)
             .filter_map(|(annotation, r)| match r {
                 Resolution::Range(range) => Some(Placed { annotation, range }),
-                Resolution::Orphan => None,
+                Resolution::Orphan | Resolution::Document => None,
             })
             .collect();
         out.sort_by_key(|p| p.range.start);

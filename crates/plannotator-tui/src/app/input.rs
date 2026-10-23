@@ -27,7 +27,7 @@ impl App {
                     Ok(())
                 }
                 Mode::ReviewMenu => self.menu_key(*key),
-                Mode::Compose | Mode::Edit(_) => self.text_key(*key),
+                Mode::Compose | Mode::Edit(_) | Mode::General => self.text_key(*key),
                 Mode::Thread(_) => self.thread_panel_key(*key),
                 Mode::Keys => {
                     self.keys_key(*key);
@@ -40,7 +40,9 @@ impl App {
             },
             // A paste lands in the comment box verbatim, newlines included; anywhere else
             // it is ignored rather than replayed as keystrokes.
-            Event::Paste(text) if matches!(self.mode, Mode::Compose | Mode::Edit(_) | Mode::Thread(_)) => {
+            Event::Paste(text)
+                if matches!(self.mode, Mode::Compose | Mode::Edit(_) | Mode::General | Mode::Thread(_)) =>
+            {
                 self.compose.insert_text(text);
                 Ok(())
             }
@@ -79,6 +81,10 @@ impl App {
                 return Ok(());
             }
             (KeyCode::Char('E'), _) => return self.send_feedback(),
+            (KeyCode::Char('C'), _) => {
+                self.open_general();
+                return Ok(());
+            }
             // A reply review sends every note, so one the agent already has closes like `q`.
             (KeyCode::Char('S'), _) if !self.is_file_review() => {
                 if self.send_state == SendState::Sent {
@@ -418,6 +424,7 @@ impl App {
                 Mode::Edit(id) => self.save_edit_as_thread(&id.clone())?,
                 _ => {}
             },
+            ComposeAction::Save if self.mode == Mode::General => self.save_general()?,
             ComposeAction::Save => {
                 let body = self.compose.value().trim().to_owned();
                 match std::mem::replace(&mut self.mode, Mode::Browse) {
@@ -430,6 +437,7 @@ impl App {
                         }
                     }
                     Mode::Compose
+                    | Mode::General
                     | Mode::Browse
                     | Mode::ConfirmQuit
                     | Mode::ConfirmRemove(_)

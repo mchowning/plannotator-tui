@@ -30,13 +30,14 @@ pub(super) struct ReviewCounts {
 }
 
 impl ReviewCounts {
-    /// Counts what a send carries: placed annotations and detached threads.
+    /// Counts what a send carries: the general comment, placed annotations and detached
+    /// threads.
     pub(super) fn for_store(store: &Store) -> Self {
         let threads = store.threads().unwrap_or_default();
         let sendable: Vec<&plannotator_tui_schema::Annotation> = store
-            .placed()
-            .iter()
-            .map(|p| p.annotation)
+            .general()
+            .into_iter()
+            .chain(store.placed().iter().map(|p| p.annotation))
             .chain(threads.iter().filter(|t| t.detached).map(|t| t.annotation))
             .collect();
         let pending = sendable.iter().filter(|a| store.is_pending(a)).count();
@@ -98,15 +99,19 @@ impl Feedback {
             .filter(|t| t.detached && (scope == SendScope::All || store.is_pending(t.annotation)))
             .map(|t| t.annotation)
             .collect();
-        if entries.is_empty() && detached.is_empty() {
+        let general = store.general().filter(|g| scope == SendScope::All || store.is_pending(g));
+        if general.is_none() && entries.is_empty() && detached.is_empty() {
             return;
         }
         if !self.text.is_empty() {
             self.text.push('\n');
         }
-        self.text.push_str(&export::feedback_with_detached(name, &entries, &detached));
-        let sent: Vec<&plannotator_tui_schema::Annotation> =
-            entries.iter().map(|e| e.annotation).chain(detached.iter().copied()).collect();
+        self.text.push_str(&export::feedback_with_detached(name, general, &entries, &detached));
+        let sent: Vec<&plannotator_tui_schema::Annotation> = general
+            .into_iter()
+            .chain(entries.iter().map(|e| e.annotation))
+            .chain(detached.iter().copied())
+            .collect();
         let ids = sent.iter().map(|a| a.id.clone()).collect();
         self.count += sent.len();
         self.annotations.extend(sent.iter().map(|&a| {
@@ -117,6 +122,7 @@ impl Feedback {
                         Kind::Comment => "comment",
                         Kind::LooksGood => "looks-good",
                         Kind::Delete => "delete",
+                        Kind::General => "general",
                     }
                     .to_owned(),
                 ),

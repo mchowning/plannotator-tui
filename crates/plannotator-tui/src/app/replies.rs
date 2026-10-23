@@ -34,7 +34,7 @@ impl App {
         let annotated: Vec<(usize, &Open)> = self
             .replies()
             .into_iter()
-            .filter(|(_, open)| !open.store.placed().is_empty())
+            .filter(|(_, open)| !open.store.placed().is_empty() || open.store.general().is_some())
             .filter(|(index, open)| *index == self.pick_open || !open.store.all_delivered())
             .collect();
         let mut feedback = Feedback::default();

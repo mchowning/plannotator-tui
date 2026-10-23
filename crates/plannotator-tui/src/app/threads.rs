@@ -76,6 +76,10 @@ impl App {
             self.status = Some(NOT_ATTACHED.into());
             return Ok(());
         }
+        if self.is_general(id) {
+            self.status = Some("a general comment can't be a thread".into());
+            return Ok(());
+        }
         let status = match self.open.store.thread_key(id)? {
             ThreadKey::Started => {
                 self.mark_unsent();

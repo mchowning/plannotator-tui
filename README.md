@@ -53,6 +53,10 @@ Drag with the mouse (or `v` and move) to select, then `a` 👍 · `c` 💬 · `d
 feedback to the clipboard as numbered annotations (`# Annotations on plan.md`, `## Annotation 1
 (line 12)`, …). Every annotation is saved as JSON the moment you make it; `q` closes.
 
+`C` writes a general comment about the whole document or reply instead of one passage. There
+is one per document: `C` again reopens it. It sits at the top of the notes and is sent first,
+as `## General feedback`.
+
 Copies go to the clipboard as OSC 52, which is the terminal you are looking at, so on Herdr 0.9.0
 they reach your own machine even when the app runs on a remote server; Herdr Annotate's global
 `copy-context` and `copy-archive` actions do not, because they run outside a pane.
@@ -80,7 +84,7 @@ dimmed. The keys also work without opening the menu.
 
 | Where | Keys |
 |---|---|
-| anywhere | `?` list the keys that work in this review (`/` filters it); `Tab` cycle tree · document · notes, landing on the note nearest the selection; `E` send; `t` tree; `r` reload; `q` quit |
+| anywhere | `?` list the keys that work in this review (`/` filters it); `Tab` cycle tree · document · notes, landing on the note nearest the selection; `C` general comment; `E` send; `t` tree; `r` reload; `q` quit |
 | reply review | `S` send and close |
 | document | `j`/`k` block, or row in a table, or item in a list; `c` comment on the block, row or item (double-click for a whole table or list); `a` 👍 it; `x` clear its annotations (a row's or item's alone); `v` select with `hjkl` `w` `b` `0` `$`; `V` select whole rows; `i` move the cursor with those keys first, then `v` to select from there; `/` search the document text (not notes), `n`/`N` next/previous match, `Esc` clears the highlight; `→` or `l` notes |
 | toolbar | `a` looks good · `c` comment · `d` delete · `Esc` |

@@ -1,10 +1,11 @@
-//! The rail: comments and threads beside the document. Detached threads come first, in a
-//! group of their own, then every placed annotation in source order.
+//! The rail: comments and threads beside the document. The general comment comes first,
+//! then detached threads in a group of their own, then every placed annotation in source
+//! order.
 
 use std::ops::Range;
 
 use plannotator_tui_schema::thread::{Author, messages};
-use plannotator_tui_schema::{Annotation, Thread, Turn, is_unread};
+use plannotator_tui_schema::{Annotation, Kind, Thread, Turn, is_unread};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style, Stylize};
@@ -19,7 +20,7 @@ use crate::wrap::wrap_line;
 #[derive(Debug)]
 pub(super) struct RailEntry<'a> {
     pub(super) annotation: &'a Annotation,
-    /// Where it sits in the source; `None` for a detached thread.
+    /// Where it sits in the source; `None` for the general comment and a detached thread.
     pub(super) range: Option<&'a Range<usize>>,
     pub(super) thread: Option<Thread>,
 }
@@ -54,12 +55,14 @@ impl App {
             .into_iter()
             .filter(|t| t.detached)
             .map(|t| RailEntry { annotation: t.annotation, range: None, thread: Some(t.thread) });
+        let general =
+            self.open.store.general().map(|annotation| RailEntry { annotation, range: None, thread: None });
         let placed = self.open.store.placed().into_iter().map(|p| RailEntry {
             annotation: p.annotation,
             range: Some(p.range),
             thread: Thread::of(p.annotation).ok().flatten(),
         });
-        detached.chain(placed).collect()
+        general.into_iter().chain(detached).chain(placed).collect()
     }
 
     pub(super) fn rail_selected_id(&self) -> Option<String> {
@@ -188,12 +191,13 @@ impl App {
         let mut next_y = rail.y;
         let entries = self.rail();
         let mut bubbles = Vec::new();
-        if entries.iter().any(|e| e.range.is_none()) {
-            let heading = Line::from(Span::raw(" detached").bold().fg(Color::DarkGray));
-            frame.render_widget(Paragraph::new(heading), Rect { height: 1, ..rail });
-            next_y += 1;
-        }
+        let first_detached = entries.iter().position(|e| e.range.is_none() && e.thread.is_some());
         for (index, entry) in entries.iter().enumerate() {
+            if first_detached == Some(index) && next_y < rail.bottom() {
+                let heading = Line::from(Span::raw(" detached").bold().fg(Color::DarkGray));
+                frame.render_widget(Paragraph::new(heading), Rect { y: next_y, height: 1, ..rail });
+                next_y += 1;
+            }
             let block = entry.range.and_then(|range| self.open.doc.block_containing(range.start));
             let y = match (entry.range, block) {
                 (None, _) => next_y,
@@ -230,7 +234,11 @@ impl App {
             };
             let border = if rail_focused && index == self.rail_cursor { border.bold() } else { border };
             let resolved = entry.thread.as_ref().is_some_and(|t| t.resolved);
-            let icon = if entry.thread.is_some() { "🧵" } else { glyph(kind) };
+            let icon = match (&entry.thread, kind) {
+                (Some(_), _) => "🧵",
+                (None, Kind::General) => "📄 general",
+                (None, _) => glyph(kind),
+            };
             let sent = if self.is_file_review() && !self.open.store.is_pending(entry.annotation) {
                 " · sent"
             } else {

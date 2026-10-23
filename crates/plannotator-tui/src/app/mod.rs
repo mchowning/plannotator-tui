@@ -7,6 +7,7 @@ mod block_parts;
 mod compose;
 mod draw;
 mod feedback;
+mod general;
 mod header;
 mod input;
 mod keys;
@@ -62,6 +63,8 @@ enum Mode {
     Compose,
     /// Editing the body of an existing annotation (by id).
     Edit(String),
+    /// Writing the general comment, about the whole document.
+    General,
     /// Quit was asked for while feedback is unsent; the footer asks first.
     ConfirmQuit,
     /// `x` was pressed; the footer asks before anything is removed.
@@ -450,6 +453,8 @@ impl App {
                 self.clear_selection();
                 self.status = Some(format!("{} saved", label(kind)));
             }
+            // Not a toolbar action: a general comment has no selection.
+            Kind::General => {}
         }
         Ok(())
     }
@@ -691,6 +696,7 @@ fn label(kind: Kind) -> &'static str {
         Kind::Comment => "comment",
         Kind::LooksGood => "looks good",
         Kind::Delete => "delete this",
+        Kind::General => "general comment",
     }
 }
 
@@ -699,5 +705,6 @@ fn glyph(kind: Kind) -> &'static str {
         Kind::Comment => "💬",
         Kind::LooksGood => "👍",
         Kind::Delete => "✗",
+        Kind::General => "📄",
     }
 }

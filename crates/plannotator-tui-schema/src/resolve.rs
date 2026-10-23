@@ -7,7 +7,7 @@
 
 use std::ops::Range;
 
-use crate::anchor::{Anchor, Extras, floor_char_boundary};
+use crate::anchor::{Anchor, Extras, Kind, floor_char_boundary};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Resolution {
@@ -15,12 +15,17 @@ pub enum Resolution {
     Range(Range<usize>),
     /// The anchor's text is no longer in the document.
     Orphan,
+    /// The anchor is about the whole document, not a passage in it.
+    Document,
 }
 
 /// Resolve `anchor` against `source`. `block_of` maps a byte offset to the index of the
 /// top-level block containing it, so the block hint can break ties; pass `|_| None` when
 /// blocks are unknown.
 pub fn resolve(anchor: &Anchor, source: &str, block_of: impl Fn(usize) -> Option<usize>) -> Resolution {
+    if anchor.kind() == Kind::General {
+        return Resolution::Document;
+    }
     let Some(extras) = anchor.plannotator_tui.as_ref().filter(|e| !e.quote.is_empty()) else {
         // A foreign anchor carries only rendered text; try it as-is against the source.
         return first_occurrence(source, anchor.rendered()).map_or(Resolution::Orphan, Resolution::Range);
@@ -107,7 +112,7 @@ fn collapse_ws(s: &str) -> String {
 #[allow(clippy::expect_used, clippy::indexing_slicing, reason = "tests assert by panicking")]
 mod tests {
     use super::*;
-    use crate::anchor::{Kind, SourceRange};
+    use crate::anchor::SourceRange;
 
     fn anchor_on(source: &str, quote: &str, block: Option<usize>) -> Anchor {
         let start = source.find(quote).expect("quote present");
@@ -167,6 +172,13 @@ mod tests {
         let anchor: Anchor =
             serde_json::from_value(serde_json::json!({"originalText": "brown fox"})).expect("parses");
         assert_eq!(resolve(&anchor, "the quick brown fox", no_blocks), Resolution::Range(10..19));
+    }
+
+    #[test]
+    fn a_general_anchor_belongs_to_the_whole_document_whatever_its_text() {
+        let anchor = Anchor::general();
+        assert_eq!(resolve(&anchor, "anything\n", no_blocks), Resolution::Document);
+        assert_eq!(resolve(&anchor, "", no_blocks), Resolution::Document);
     }
 
     #[test]
