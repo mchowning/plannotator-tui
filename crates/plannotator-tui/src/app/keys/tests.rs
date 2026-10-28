@@ -393,7 +393,8 @@ fn the_key_help_starts_with_the_pointer_when_it_fits() {
     let (_root, mut app, _) = folder_app("pointer-tree");
     app.focus = Focus::Tree;
     assert!(
-        footer(&mut app, 160).ends_with(" ? keys · j/k · enter open · . hidden · E send · t hide · q quit · ctrl+p find"),
+        footer(&mut app, 160)
+            .ends_with(" ? keys · j/k · enter open · . hidden · E send · t hide · q quit · ctrl+p find"),
         "{:?}",
         footer(&mut app, 160)
     );
