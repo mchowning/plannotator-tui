@@ -5,10 +5,14 @@ mod archive_view;
 mod attached_send;
 mod block_parts;
 mod compose;
+mod disk;
 mod draw;
+mod editor;
 mod feedback;
+mod file_search;
 mod general;
 mod header;
+mod images;
 mod input;
 mod keys;
 mod menu;
@@ -28,6 +32,7 @@ mod tests;
 mod thread_view;
 mod threads;
 mod unread;
+mod viewport;
 
 use std::collections::HashMap;
 use std::ops::Range;
@@ -37,8 +42,10 @@ use anyhow::{Context, Result};
 use plannotator_tui_schema::{DocumentSource, Kind, Provenance};
 use ratatui::layout::Rect;
 
+use crate::config::UiConfig;
 use crate::delivery::Delivery;
 use crate::doc::Document;
+use crate::keys::{Action, Keymap};
 use crate::layout::DocLayout;
 use crate::store::{Location, Store};
 use crate::tree::Tree;
@@ -50,10 +57,10 @@ use send::SendState;
 pub(super) const GUTTER: u16 = 2;
 
 /// Toolbar items in display order: (glyph, label, key, kind).
-const TOOLBAR: [(&str, &str, char, Kind); 3] = [
-    ("👍", "looks good", 'a', Kind::LooksGood),
-    ("💬", "comment", 'c', Kind::Comment),
-    ("✗", "delete", 'd', Kind::Delete),
+const TOOLBAR: [(&str, &str, Action, Kind); 3] = [
+    ("👍", "looks good", Action::LooksGood, Kind::LooksGood),
+    ("💬", "comment", Action::Comment, Kind::Comment),
+    ("✗", "delete", Action::Delete, Kind::Delete),
 ];
 
 #[derive(Debug, PartialEq, Eq)]
@@ -68,12 +75,18 @@ enum Mode {
     General {
         then_send: bool,
     },
+    /// Typing the path of an image to attach to an annotation (by id).
+    AttachImage(String),
     /// Quit was asked for while feedback is unsent; the footer asks first.
     ConfirmQuit,
     /// `x` was pressed; the footer asks before anything is removed.
     ConfirmRemove(remove::Removal),
+    /// `clear-all` was pressed; the footer asks before every note on the document goes.
+    ConfirmClearAll,
     /// Choosing which of the agent's recent messages to review.
     Pick,
+    /// Quick Open: finding a file in the folder by name.
+    FileSearch,
     /// Restoring annotations from finished file reviews.
     Archive,
     /// The header's Review menu is open over a file or folder review.
@@ -119,6 +132,8 @@ struct Geometry {
     /// The key list drawn last frame, and how far it can scroll.
     keys: Option<Rect>,
     keys_max_scroll: usize,
+    /// Quick Open result rows drawn last frame, with their position in the results.
+    search_rows: Vec<(Rect, usize)>,
 }
 
 /// A finished selection waiting for an action.
@@ -136,10 +151,15 @@ struct Open {
     doc: Document,
     layout: DocLayout,
     store: Store,
+    /// The file's size and mtime when it was loaded; `None` for anything but a readable file.
+    disk: Option<disk::DiskStamp>,
+    /// The last change on disk the footer already reported, so it is said once.
+    disk_noticed: Option<disk::DiskStamp>,
 }
 
 impl Open {
     fn new(source: DocumentSource, width: usize, data_dir: &Path, project: &str) -> Result<Self> {
+        let disk = disk::DiskStamp::of_source(&source.provenance);
         let doc = Document::parse(source.content.clone());
         let layout = DocLayout::build(&doc, width);
         let store = match (&source.provenance, source.transient) {
@@ -148,7 +168,7 @@ impl Open {
             }
             _ => Store::transient(),
         };
-        Ok(Self { source, doc, layout, store })
+        Ok(Self { source, doc, layout, store, disk, disk_noticed: None })
     }
 }
 
@@ -162,6 +182,8 @@ pub(crate) struct App {
     project: String,
     /// Present in folder mode.
     tree: Option<Tree>,
+    /// Present while Quick Open is showing.
+    file_search: Option<file_search::FileSearch>,
     tree_cursor: usize,
     /// First tree row drawn; follows `tree_cursor` so the selected row stays visible.
     tree_scroll: usize,
@@ -213,10 +235,20 @@ pub(crate) struct App {
     compose: Compose,
     /// Whether the terminal reports Shift+Enter distinctly (kitty keyboard protocol).
     pub(super) shift_enter: bool,
+    pub(crate) keys: Keymap,
+    /// `$VISUAL` or `$EDITOR`, read once at startup; `None` leaves `open-in-editor` asking
+    /// for one.
+    pub(crate) editor: Option<String>,
+    /// Set by `open-in-editor` for the event loop, which owns the terminal, to act on.
+    editor_request: Option<crate::editor::EditorRequest>,
+    /// `[ui]` from the config: the centered viewport and the document width.
+    pub(crate) ui: UiConfig,
     /// The last primary-button press, for double-click detection.
     last_click: Option<(std::time::Instant, u16, u16)>,
     geometry: Geometry,
     status: Option<String>,
+    /// When the event loop last compared the open file with its copy on disk.
+    disk_checked: Option<std::time::Instant>,
     frame_ms: f64,
     frame_max_ms: f64,
     /// The pi session that launched this review, from `PLANNOTATOR_TUI_AGENT_SESSION`.
@@ -258,6 +290,7 @@ impl App {
             data_dir,
             project,
             tree: None,
+            file_search: None,
             tree_cursor: 0,
             tree_scroll: 0,
             tree_visible: None,
@@ -290,9 +323,14 @@ impl App {
             terminal_breaks: None,
             compose: Compose::default(),
             shift_enter: false,
+            keys: Keymap::default(),
+            editor: None,
+            editor_request: None,
+            ui: UiConfig::default(),
             last_click: None,
             geometry: Geometry::default(),
             status: None,
+            disk_checked: None,
             frame_ms: 0.0,
             frame_max_ms: 0.0,
             agent_session: None,
@@ -402,12 +440,36 @@ impl App {
             return Ok(());
         }
         let path = row.path.clone();
-        if matches!(&self.open.source.provenance, Provenance::File { path: p } if *p == path) {
+        self.open_file_path(&path)
+    }
+
+    /// Expand the folders above `path` and put the tree cursor on it, with the same count
+    /// refresh an expanded directory gets. Folders the user had expanded stay expanded. The
+    /// file is already open by now, so a folder that cannot be listed is only reported.
+    fn reveal_in_tree(&mut self, path: &Path) {
+        let Some(mut tree) = self.tree.take() else { return };
+        let result = tree.reveal(path);
+        self.refresh_counts(&mut tree);
+        self.tree = Some(tree);
+        match result {
+            Ok(Some(index)) => self.tree_cursor = index,
+            Ok(None) => {}
+            Err(error) => self.status = Some(format!("showing {} in the tree: {error:#}", path.display())),
+        }
+        self.refresh_review_counts();
+        self.derive_send_state();
+        self.keep_tree_cursor_visible(usize::from(self.geometry.tree.height));
+    }
+
+    /// Open `path` in place of the current document. The new document is built first, so a
+    /// file that cannot be read leaves the current one open.
+    fn open_file_path(&mut self, path: &Path) -> Result<()> {
+        if matches!(&self.open.source.provenance, Provenance::File { path: p } if p == path) {
             self.focus = Focus::Document;
             return Ok(());
         }
         let width = self.open.layout.width;
-        self.open = Open::new(read_file(&path)?, width, &self.data_dir, &self.project)?;
+        self.open = Open::new(read_file(path)?, width, &self.data_dir, &self.project)?;
         self.update_open_review_counts();
         self.derive_send_state();
         self.scroll = 0;
@@ -591,7 +653,10 @@ impl App {
             return Ok(());
         };
         let path = path.clone();
+        let disk = disk::DiskStamp::of(&path);
         self.open.source = read_file(&path)?;
+        self.open.disk = disk;
+        self.open.disk_noticed = None;
         self.open.doc = Document::parse(self.open.source.content.clone());
         self.open.layout = DocLayout::build(&self.open.doc, self.open.layout.width);
         self.open.store =

@@ -154,6 +154,41 @@ fn quitting_with_unsent_feedback_asks_before_it_quits() {
     assert_eq!(app.send_state, SendState::Ready, "nothing was sent");
 }
 
+#[test]
+fn clear_all_asks_first_and_only_yes_clears_the_document() {
+    let mut app = app(Box::new(Discard));
+    app.add_block_annotation(0, Kind::Comment, "first".to_owned()).expect("annotation");
+    app.add_block_annotation(1, Kind::LooksGood, String::new()).expect("annotation");
+    let press = |app: &mut App, c| app.handle_event(&Event::Key(KeyEvent::from(c))).expect("key");
+
+    press(&mut app, KeyCode::Char('X'));
+    assert_eq!(app.mode, Mode::ConfirmClearAll);
+    let rows = draw(&mut app);
+    let footer = row(&rows, 19);
+    assert!(
+        footer.contains("clear all 2 annotation(s) on current document? y clear · n cancel"),
+        "{footer:?}"
+    );
+    // Enter is not an answer: a slip followed by Enter must not wipe every note.
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.mode, Mode::ConfirmClearAll);
+    press(&mut app, KeyCode::Char('n'));
+    assert_eq!(app.mode, Mode::Browse);
+    assert_eq!(app.open.store.len(), 2, "n keeps every note");
+    press(&mut app, KeyCode::Char('X'));
+    press(&mut app, KeyCode::Esc);
+    assert_eq!(app.open.store.len(), 2, "esc keeps every note");
+
+    press(&mut app, KeyCode::Char('X'));
+    press(&mut app, KeyCode::Char('y'));
+    assert_eq!(app.mode, Mode::Browse);
+    assert_eq!(app.open.store.len(), 0);
+    assert_eq!(app.status.as_deref(), Some("cleared 2 annotation(s) on current document"));
+
+    press(&mut app, KeyCode::Char('X'));
+    assert_eq!(app.mode, Mode::Browse, "nothing to clear, nothing to ask");
+}
+
 fn candidates() -> Vec<plannotator_tui_hosts::Message> {
     use plannotator_tui_hosts::{Message, Role};
     let message = |id: &str, text: &str, at: &str| Message {
@@ -300,6 +335,99 @@ fn draw_sized(app: &mut App, width: u16, height: u16) -> Vec<String> {
                 .collect()
         })
         .collect()
+}
+
+fn click(app: &mut App, kind: MouseEventKind, column: u16, row: u16) {
+    app.handle_event(&Event::Mouse(MouseEvent { kind, column, row, modifiers: KeyModifiers::NONE }))
+        .expect("mouse");
+}
+
+fn blank(rows: &[String], columns: std::ops::Range<usize>) -> bool {
+    rows.iter().all(|row| row.chars().skip(columns.start).take(columns.len()).all(|c| c == ' '))
+}
+
+#[test]
+fn a_centered_app_leaves_both_margins_blank_and_its_buttons_still_click() {
+    let mut app = app(Box::new(Discard));
+    app.ui.horizontal_margin = 4;
+    app.ui.max_width = 120;
+    app.add_block_annotation(0, Kind::Comment, "centered comment".to_owned()).expect("annotation");
+    let rows = draw_sized(&mut app, 180, 20);
+    assert!(blank(&rows, 0..30) && blank(&rows, 150..180), "{rows:#?}");
+    assert_eq!(app.geometry.doc.x, 32);
+    let send = app.geometry.send_button.expect("send button");
+    assert_eq!(send.right(), 150);
+    click(&mut app, MouseEventKind::Down(MouseButton::Left), send.x + send.width / 2, send.y);
+    assert_eq!(app.send_state, SendState::Sent);
+}
+
+#[test]
+fn margins_yield_before_the_app_drops_below_80_columns_and_default_to_none() {
+    let mut app = app(Box::new(Discard));
+    draw_sized(&mut app, 180, 20);
+    assert_eq!(app.geometry.doc.x, 2, "full width by default");
+    app.ui.horizontal_margin = 4;
+    app.ui.max_width = 120;
+    for (width, left, viewport_width) in [(180, 30, 120), (100, 4, 92), (84, 2, 80), (60, 0, 60)] {
+        draw_sized(&mut app, width, 20);
+        let area = app.viewport(ratatui::layout::Rect::new(0, 0, width, 20));
+        assert_eq!((area.x, area.width), (left, viewport_width), "terminal {width}");
+        assert_eq!(app.geometry.doc.x, left + 2);
+        assert_eq!(app.open.layout.width, usize::from(app.geometry.doc.width));
+    }
+}
+
+#[test]
+fn doc_width_caps_the_text_and_spare_columns_sit_before_the_rail() {
+    let mut app = app(Box::new(Discard));
+    app.ui.doc_width = 100;
+    // (terminal, document): the cap holds when wide; when narrow the rail keeps its width
+    // and the document absorbs the shortfall.
+    for (width, doc_width) in [(250, 100), (140, 100), (120, 81), (90, 59)] {
+        draw_sized(&mut app, width, 20);
+        assert_eq!(app.geometry.doc.width, doc_width, "terminal {width}");
+        assert_eq!(app.open.layout.width, usize::from(doc_width));
+    }
+    app.ui.doc_width = 0;
+    draw_sized(&mut app, 250, 20);
+    assert_eq!(app.geometry.doc.width, 250 - 2 - 1 - 36, "zero takes every column the rail leaves");
+}
+
+#[test]
+fn a_doc_width_that_does_not_bind_keeps_the_layout_down_to_the_narrowest_pane() {
+    let mut app = app(Box::new(Discard));
+    for doc_width in [0, 100] {
+        app.ui.doc_width = doc_width;
+        let rows = draw_sized(&mut app, 12, 10);
+        // Too narrow for the gutter: the text takes every column, as it did before `[ui]`.
+        assert_eq!((app.geometry.doc.x, app.geometry.doc.width), (0, 12), "doc_width {doc_width}: {rows:#?}");
+    }
+}
+
+#[test]
+fn popups_stay_inside_the_centered_app() {
+    let mut app = app(Box::new(Discard));
+    app.ui.horizontal_margin = 4;
+    app.ui.max_width = 80;
+    for mode in [Mode::Compose, Mode::ReviewMenu, Mode::Archive] {
+        app.mode = mode;
+        let rows = draw_sized(&mut app, 180, 20);
+        assert!(blank(&rows, 0..50) && blank(&rows, 130..180), "{rows:#?}");
+    }
+}
+
+#[test]
+fn a_mouse_selection_in_a_centered_app_selects_the_text_under_the_pointer() {
+    let mut app = app(Box::new(Discard));
+    app.ui.horizontal_margin = 4;
+    app.ui.max_width = 120;
+    draw_sized(&mut app, 180, 20);
+    let doc = app.geometry.doc;
+    click(&mut app, MouseEventKind::Down(MouseButton::Left), doc.x, doc.y);
+    click(&mut app, MouseEventKind::Drag(MouseButton::Left), doc.x + 3, doc.y);
+    click(&mut app, MouseEventKind::Up(MouseButton::Left), doc.x + 3, doc.y);
+    let pending = app.pending.as_ref().expect("selection");
+    assert_eq!(&app.open.doc.source[pending.range.clone()], "Plan");
 }
 
 fn open_path(app: &App) -> String {
@@ -806,4 +934,48 @@ fn a_reply_already_sent_is_not_sent_again_from_another_reply() {
     assert_eq!(calls.len(), 2);
     assert!(calls[1].contains("on the middle"), "{}", calls[1]);
     assert!(!calls[1].contains("on the newest"), "the newest reply was sent already: {}", calls[1]);
+}
+
+/// `[keys]` drives the app and its hints: the rebound key moves, the key it replaced does not.
+#[test]
+fn rebound_movement_keys_move_and_the_footer_names_them() {
+    let mut app = app(Box::new(Discard));
+    app.keys =
+        toml::from_str("left = [\"j\"]\ndown = [\"k\"]\nup = [\"l\"]\nright = [\";\"]\n").expect("keys");
+    keys(&mut app, &[KeyCode::Char('j')]);
+    assert_eq!(app.selected, 0, "j is left now, and a column move starts the cursor");
+    keys(&mut app, &[KeyCode::Esc, KeyCode::Char('k')]);
+    assert_eq!(app.selected, 1);
+    app.roam = true;
+    let footer = draw(&mut app).pop().expect("footer");
+    assert!(footer.contains("jkl; move"), "{footer:?}");
+}
+
+/// An unbound action leaves no bare label behind in the footer.
+#[test]
+fn an_unbound_action_drops_out_of_the_footer() {
+    let mut app = app(Box::new(Discard));
+    app.keys = toml::from_str("quit = []\n").expect("keys");
+    let footer = draw(&mut app).pop().expect("footer");
+    assert!(footer.contains("S send+quit "), "{footer:?}");
+    assert!(!footer.contains("quit · ") && !footer.contains(" · quit"), "{footer:?}");
+}
+
+/// A ctrl binding whose letter is also a plain binding earlier in the context still runs.
+#[test]
+fn a_ctrl_binding_beats_the_plain_key_it_shares_a_letter_with() {
+    let mut app = app(Box::new(Discard));
+    // `up` comes before `bottom` in the document, and its plain `k` matches ctrl+k too.
+    app.keys = toml::from_str("bottom = [\"ctrl+k\"]\n").expect("keys");
+    app.handle_event(&Event::Key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::CONTROL))).expect("key");
+    assert_eq!(app.selected, 1, "ctrl+k goes to the last block instead of up");
+}
+
+/// Without a file tree `quick-open` has nothing to search, so ctrl+p keeps meaning `p`.
+#[test]
+fn ctrl_p_in_a_reply_review_still_picks_another_reply() {
+    let mut app = message_app(None, Box::new(Discard));
+    app.handle_event(&Event::Key(KeyEvent::from(KeyCode::Esc))).expect("esc");
+    app.handle_event(&Event::Key(KeyEvent::new(KeyCode::Char('p'), KeyModifiers::CONTROL))).expect("ctrl+p");
+    assert_eq!(app.mode, Mode::Pick);
 }

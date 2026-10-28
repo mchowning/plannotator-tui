@@ -300,6 +300,12 @@ impl Store {
         })
     }
 
+    /// Remove every active annotation on the document; finished (archived) ones and the
+    /// send history stay. Returns how many were removed.
+    pub(crate) fn clear_all(&mut self) -> Result<usize> {
+        self.mutate(None, |record| Ok(std::mem::take(&mut record.annotations).len()))
+    }
+
     pub(crate) fn remove(&mut self, id: &str) -> Result<bool> {
         self.mutate(None, |record| {
             let before = record.annotations.len();
@@ -350,6 +356,10 @@ impl Store {
         out
     }
 
+    pub(crate) fn has_images(&self, id: &str) -> bool {
+        self.annotations.iter().any(|a| a.id == id && !a.plannotator_tui.images.is_empty())
+    }
+
     pub(crate) fn len(&self) -> usize {
         self.annotations.len()
     }
@@ -384,6 +394,7 @@ pub(crate) fn new_annotation(
         author_name: None,
         state: State::Open,
         attachments: Vec::new(),
+        plannotator_tui: plannotator_tui_schema::NoteExtras::default(),
         created_at: now.clone(),
         updated_at: now,
         replies: Vec::new(),
@@ -550,6 +561,25 @@ mod tests {
         let newest = reloaded.placed().last().map(|p| p.annotation.id.clone()).expect("two");
         reloaded.remove(&newest).expect("remove");
         assert!(reloaded.all_delivered(), "back to exactly the delivered set");
+        std::fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+    #[test]
+    fn clear_all_empties_the_record_and_keeps_the_send_history() {
+        let root = temp_root("clear-all");
+        let location = Location::for_file(&root.join("data"), "proj", &root.join("doc.md"));
+        let doc = Document::parse("one two three\n".to_owned());
+        let mut store = Store::load(&location, &doc).expect("empty");
+        store.add(&doc, 0..3, "one".into(), Kind::Comment, "a".into()).expect("add");
+        store.add(&doc, 4..7, "two".into(), Kind::LooksGood, String::new()).expect("add");
+        let ids = store.placed().iter().map(|p| p.annotation.id.clone()).collect::<Vec<_>>();
+        store.record_delivery("claude in w1:p1", &ids).expect("record");
+        assert_eq!(store.clear_all().expect("cleared"), 2);
+        assert!(store.placed().is_empty());
+
+        let reloaded = Store::load(&location, &doc).expect("reload");
+        assert_eq!(reloaded.len(), 0, "the clear is saved");
+        assert_eq!(reloaded.deliveries.len(), 1, "the send history stays");
         std::fs::remove_dir_all(&root).expect("cleanup");
     }
 }

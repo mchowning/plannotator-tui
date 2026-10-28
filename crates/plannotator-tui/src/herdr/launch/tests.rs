@@ -211,6 +211,29 @@ fn the_agent_pid_is_the_named_agent_process_else_the_group_leader() {
     assert_eq!(agent_pid("{}"), None);
 }
 
+/// Windows reports `agy.exe`, sometimes with a `\`-separated path; every known agent and the
+/// group leader's reported name are matched without either.
+#[test]
+fn windows_process_names_match_without_their_directory_or_exe_suffix() {
+    for (name, host) in [
+        ("agy.exe", "agy"),
+        (r"C:\Users\me\AppData\Local\agy\agy.exe", "agy"),
+        ("/usr/local/bin/agy", "agy"),
+        ("claude.EXE", "claude"),
+        (r"C:\tools\codex.exe", "codex"),
+        ("opencode.exe", "opencode"),
+        ("pi.exe", "pi"),
+    ] {
+        let info =
+            PROCESS_INFO.replace(r#""name":"claude""#, &format!(r#""name":{}"#, serde_json::json!(name)));
+        assert_eq!(agent_pid(&info), Some((91279, host.into())), "{name}");
+    }
+    let leader = PROCESS_INFO.replace(r#""name":"claude""#, r#""name":"C:\\bin\\aider.exe""#);
+    assert_eq!(agent_pid(&leader), Some((91279, "aider".into())), "an unknown leader is named the same way");
+    let dotted = PROCESS_INFO.replace(r#""name":"claude""#, r#""name":"agy.sh""#);
+    assert_eq!(agent_pid(&dotted), Some((91279, "agy.sh".into())), "only .exe is a suffix to drop");
+}
+
 #[test]
 fn a_last_launch_carries_the_pid_and_host_instead_of_a_file() {
     let context = HerdrContext {
@@ -234,6 +257,52 @@ fn a_last_launch_carries_the_pid_and_host_instead_of_a_file() {
     assert!(args.contains(&"PLANNOTATOR_TUI_MESSAGE_PID=91279".to_owned()));
     assert!(args.contains(&"PLANNOTATOR_TUI_HOST=claude".to_owned()));
     assert!(!args.iter().any(|a| a.starts_with("PLANNOTATOR_TUI_FILE=")));
+}
+
+/// Command Code under Herdr: agent `cmd`, no session reported, `node` in the foreground.
+#[test]
+fn herdrs_cmd_label_selects_command_code_while_the_pid_comes_from_the_process() {
+    let context = HerdrContext {
+        focused_pane_id: Some("w1:p1".into()),
+        focused_pane_agent: Some("cmd".into()),
+        focused_pane_cwd: Some("/w".into()),
+        ..HerdrContext::default()
+    };
+    let node = PROCESS_INFO.replace(r#""name":"claude""#, r#""name":"node""#);
+    assert_eq!(agent_pid(&node), Some((91279, "node".into())), "node alone is not an agent");
+    let agent_get =
+        r#"{"id":"cli:agent:get","result":{"agent":{"agent":"cmd","pane_id":"w1:p1"},"type":"agent_info"}}"#;
+    let launch = plan_last(
+        &env(None, Some(context)),
+        &Config::default(),
+        OpenArgs::default(),
+        Path::new("/"),
+        Some(&node),
+        Some(agent_get),
+    )
+    .expect("plans");
+    assert_eq!(launch.message, Some(AgentMessage { host: "cmd".into(), pid: Some(91279) }));
+    assert_eq!(launch.session, None);
+    assert!(argv(&launch).contains(&"PLANNOTATOR_TUI_HOST=cmd".to_owned()));
+}
+
+/// Antigravity under Herdr: agent `agy` with the conversation id as its session.
+#[test]
+fn herdrs_agy_label_and_conversation_id_select_antigravity_exactly() {
+    let agent_get = r#"{"id":"cli:agent:get","result":{"agent":{"agent":"agy","agent_session":{"agent":"agy","kind":"id","source":"herdr:antigravity_cli","value":"4f1c9e2a-7b3d-4c8e-9a10-2b6d8e0f1a3c"},"pane_id":"w1:p1"},"type":"agent_info"}}"#;
+    let launch = plan_last(
+        &env(Some("w1:p1"), None),
+        &Config::default(),
+        OpenArgs::default(),
+        Path::new("/"),
+        None,
+        Some(agent_get),
+    )
+    .expect("plans");
+    assert_eq!(launch.message, Some(AgentMessage { host: "agy".into(), pid: None }));
+    let args = argv(&launch);
+    assert!(args.contains(&"PLANNOTATOR_TUI_HOST=agy".to_owned()));
+    assert!(args.contains(&"PLANNOTATOR_TUI_SESSION_ID=4f1c9e2a-7b3d-4c8e-9a10-2b6d8e0f1a3c".to_owned()));
 }
 
 const AGENT_GET_PATH: &str = r#"{"id":"cli:agent:get","result":{"agent":{"agent":"omp","agent_session":{"agent":"omp","kind":"path","source":"herdr:omp","value":"~/.omp/agent/sessions/--w--/2026-08-29T01-00-00-000Z_0199.jsonl"},"pane_id":"w1:p1"},"type":"agent_info"}}"#;

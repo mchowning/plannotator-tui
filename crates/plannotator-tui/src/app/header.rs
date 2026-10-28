@@ -11,6 +11,7 @@ use unicode_width::UnicodeWidthStr;
 use super::App;
 use super::draw::UNREAD;
 use super::send::SendState;
+use crate::keys::Action;
 use crate::theme::palette;
 
 // These three set their own foreground as well as their background, so they read the same
@@ -19,7 +20,7 @@ const SEND_BG: Color = Color::Indexed(30);
 const SENT_BG: Color = Color::Indexed(22);
 const BLOCKED_BG: Color = Color::Indexed(58);
 
-pub(super) const REVIEW_LABEL: &str = "Review \u{25be} (m)";
+const REVIEW_LABEL: &str = "Review \u{25be}";
 
 #[derive(Debug, Clone, Copy)]
 enum Button {
@@ -38,7 +39,7 @@ impl App {
         }
         let mut labels = vec![(Button::Send, self.send_label())];
         if self.is_file_review() {
-            labels.push((Button::Review, REVIEW_LABEL.to_owned()));
+            labels.push((Button::Review, self.review_label()));
         }
         let unread = self.unread_count();
         if unread > 0 {
@@ -62,6 +63,14 @@ impl App {
             .collect()
     }
 
+    /// The Review button names the key that opens the menu, when it has one.
+    fn review_label(&self) -> String {
+        match self.keys.hint(Action::ReviewMenu) {
+            key if key.is_empty() => REVIEW_LABEL.to_owned(),
+            key => format!("{REVIEW_LABEL} ({key})"),
+        }
+    }
+
     pub(super) fn header_height(&self, width: u16) -> u16 {
         self.header_buttons(width).last().map_or(1, |(_, _, rect)| rect.y + 1)
     }
@@ -80,7 +89,7 @@ impl App {
                 }
                 Button::Review => {
                     self.geometry.review_button = Some(rect);
-                    Style::new().fg(Color::Cyan).bg(palette().toolbar_bg)
+                    Style::new().fg(palette().accent).bg(palette().toolbar_bg)
                 }
                 Button::Unread => Style::new().fg(UNREAD).bold(),
             };

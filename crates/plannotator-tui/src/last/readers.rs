@@ -3,7 +3,9 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
-use plannotator_tui_hosts::{Host, Message, claude, codex, copilot, droid, hermes, omp, opencode, pi};
+use plannotator_tui_hosts::{
+    Host, Message, antigravity, claude, codex, commandcode, copilot, droid, hermes, omp, opencode, pi,
+};
 
 use super::exact::ExactSession;
 
@@ -24,6 +26,8 @@ pub(super) fn explicit(
         Host::Droid => Ok((path.to_path_buf(), droid_messages(path, pick)?)),
         Host::Pi => Ok((path.to_path_buf(), pi_messages(path, pick)?)),
         Host::Omp => Ok((path.to_path_buf(), omp_messages(path, pick)?)),
+        Host::CommandCode => Ok((path.to_path_buf(), commandcode_messages(path, pick)?)),
+        Host::Antigravity => Ok((path.to_path_buf(), antigravity_messages(path, pick)?)),
         Host::Hermes => {
             let id = required_session_id(session_id, "hermes")?;
             Ok((path.to_path_buf(), hermes::messages_for_session(path, id, pick)?))
@@ -62,6 +66,14 @@ pub(super) fn exact(
         }
         (Host::Omp, ExactSession::File(path)) => {
             let messages = omp_messages(&path, pick)?;
+            Ok((path, messages))
+        }
+        (Host::CommandCode, ExactSession::File(path)) => {
+            let messages = commandcode_messages(&path, pick)?;
+            Ok((path, messages))
+        }
+        (Host::Antigravity, ExactSession::File(path)) => {
+            let messages = antigravity_messages(&path, pick)?;
             Ok((path, messages))
         }
         (Host::Hermes, ExactSession::Hermes(database)) => {
@@ -135,6 +147,16 @@ pub(super) fn droid_messages(path: &Path, pick: usize) -> Result<Vec<Message>> {
 pub(super) fn omp_messages(path: &Path, pick: usize) -> Result<Vec<Message>> {
     let text = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
     Ok(omp::parse_messages(&text, pick))
+}
+
+pub(super) fn commandcode_messages(path: &Path, pick: usize) -> Result<Vec<Message>> {
+    let text = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+    Ok(commandcode::parse_messages(&text, pick))
+}
+
+pub(super) fn antigravity_messages(path: &Path, pick: usize) -> Result<Vec<Message>> {
+    let text = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+    Ok(antigravity::parse_messages(&text, pick))
 }
 
 pub(super) fn pi_messages(path: &Path, pick: usize) -> Result<Vec<Message>> {

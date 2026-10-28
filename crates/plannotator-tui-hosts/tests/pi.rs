@@ -86,13 +86,14 @@ fn tool_calls_tool_results_and_thinking_are_not_messages() {
 
 #[test]
 fn an_unreconstructable_chain_yields_nothing_rather_than_the_wrong_messages() {
-    assert!(parse_messages(&fixture("pi-dangling.jsonl"), 25).is_empty());
+    assert_eq!(parse_messages(&fixture("pi-dangling.jsonl"), 25), [] as [plannotator_tui_hosts::Message; 0]);
 }
 
 #[test]
-fn n_caps_the_total_and_numeric_timestamps_become_iso() {
+fn n_caps_the_replies_and_numeric_timestamps_become_iso() {
     let messages = parse_messages(&fixture("pi.jsonl"), 2);
-    assert_eq!(messages.len(), 2);
+    assert_eq!(messages.iter().filter(|m| m.role == Role::Assistant).count(), 2);
+    assert_eq!(messages.last().map(|m| m.role), Some(Role::Assistant), "nothing older than the 2nd reply");
     let line = r#"{"type":"message","id":"a1","parentId":null,"timestamp":1787938040000,"message":{"role":"assistant","content":[{"type":"text","text":"x"}]}}"#;
     assert_eq!(parse_messages(line, 1)[0].at.as_deref(), Some("2026-08-28T17:27:20.000Z"));
     let string_content = r#"{"type":"message","id":"a2","parentId":null,"timestamp":"t","message":{"role":"assistant","content":"plain string"}}"#;

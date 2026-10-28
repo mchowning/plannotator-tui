@@ -168,7 +168,7 @@ fn print_never_fails_the_caller_when_nothing_is_found() {
     let missing = fixtures().join("does-not-exist.jsonl");
     let out = bin().args(["last", "--session"]).arg(&missing).arg("--print").output().expect("runs");
     assert!(out.status.success(), "exit 0 is the contract");
-    assert!(out.stdout.is_empty());
+    assert_eq!(out.stdout, [] as [u8; 0]);
     assert!(String::from_utf8_lossy(&out.stderr).contains("does-not-exist.jsonl"));
 }
 
@@ -246,6 +246,147 @@ fn a_session_path_without_a_host_is_sniffed() {
         "{}",
         String::from_utf8_lossy(&out.stderr)
     );
+}
+
+/// No session id from Herdr: the pane's cwd selects the session under `$HOME/.commandcode`.
+#[cfg(unix)]
+#[test]
+fn command_code_reads_the_session_started_in_the_agents_cwd() {
+    let home = temp_dir("cmd home");
+    let projects = home.join(".commandcode/projects");
+    std::fs::create_dir_all(&projects).expect("projects");
+    let source = fixtures().join("commandcode/users-me-my-proj");
+    let target = projects.join("users-me-my-proj");
+    std::fs::create_dir_all(&target).expect("project");
+    let name = "0198f0a1-7c2e-7b10-9a4d-3c5e8f1a2b3c.jsonl";
+    std::fs::copy(source.join(name), target.join(name)).expect("copy");
+    let out = bin()
+        .env("HOME", &home)
+        .env("PLANNOTATOR_TUI_CWD", "/Users/me/MyProj")
+        .env_remove("PLANNOTATOR_TUI_HOST")
+        .args(["last", "--host", "cmd", "--print"])
+        .output()
+        .expect("runs");
+    assert!(out.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout).trim_end(),
+        "# Done\n\nassistant text 2, longer than the viewport\nsecond block",
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let elsewhere = bin()
+        .env("HOME", &home)
+        .env("PLANNOTATOR_TUI_CWD", "/Users/me/other")
+        .args(["last", "--host", "cmd", "--print"])
+        .output()
+        .expect("runs");
+    assert!(elsewhere.status.success(), "exit 0 is the contract");
+    assert_eq!(String::from_utf8_lossy(&elsewhere.stdout), "");
+    assert!(String::from_utf8_lossy(&elsewhere.stderr).contains("no Command Code session"));
+    std::fs::remove_dir_all(&home).expect("cleanup");
+}
+
+/// Herdr's conversation id reads its transcript directly; without one, the conversation the
+/// prompt history ties to the pane's cwd is read.
+#[test]
+fn antigravity_reads_the_conversation_herdr_names_or_the_one_started_in_the_cwd() {
+    let id = "4f1c9e2a-7b3d-4c8e-9a10-2b6d8e0f1a3c";
+    let app = temp_dir("agy");
+    let relative = format!("brain/{id}/.system_generated/logs/transcript_full.jsonl");
+    let target = app.join(&relative);
+    std::fs::create_dir_all(target.parent().expect("logs")).expect("logs dir");
+    std::fs::copy(fixtures().join("antigravity").join(&relative), &target).expect("copy");
+    let newest = "Done: both settings are applied in `retroarch.cfg`.";
+    let by_id = bin()
+        .env("ANTIGRAVITY_CLI_HOME", &app)
+        .env("PLANNOTATOR_TUI_CWD", "/w/unrelated")
+        .args(["last", "--host", "agy", "--session-id", id, "--print"])
+        .output()
+        .expect("runs");
+    assert_eq!(
+        String::from_utf8_lossy(&by_id.stdout).trim_end(),
+        newest,
+        "{}",
+        String::from_utf8_lossy(&by_id.stderr)
+    );
+    let unvouched = bin()
+        .env("ANTIGRAVITY_CLI_HOME", &app)
+        .env("PLANNOTATOR_TUI_CWD", "/w/proj")
+        .args(["last", "--host", "agy", "--print"])
+        .output()
+        .expect("runs");
+    assert!(unvouched.status.success(), "exit 0 is the contract");
+    assert_eq!(String::from_utf8_lossy(&unvouched.stdout), "");
+    assert!(
+        String::from_utf8_lossy(&unvouched.stderr).contains("no Antigravity conversation started in /w/proj")
+    );
+    std::fs::write(
+        app.join("history.jsonl"),
+        format!("{{\"display\":\"Apply it.\",\"timestamp\":1,\"workspace\":\"/w/proj\",\"conversationId\":\"{id}\"}}\n"),
+    )
+    .expect("history");
+    let by_cwd = bin()
+        .env("ANTIGRAVITY_CLI_HOME", &app)
+        .env("PLANNOTATOR_TUI_CWD", "/w/proj")
+        .args(["last", "--host", "agy", "--print"])
+        .output()
+        .expect("runs");
+    assert_eq!(
+        String::from_utf8_lossy(&by_cwd.stdout).trim_end(),
+        newest,
+        "{}",
+        String::from_utf8_lossy(&by_cwd.stderr)
+    );
+    std::fs::remove_dir_all(&app).expect("cleanup");
+}
+
+/// Run from a shell `agy` started, its exported conversation id picks the transcript exactly,
+/// with no host named and a newer conversation in the same folder.
+#[test]
+fn inside_an_agy_shell_the_exported_conversation_id_is_read() {
+    let id = "4f1c9e2a-7b3d-4c8e-9a10-2b6d8e0f1a3c";
+    let newer = "22222222-2222-4222-8222-222222222222";
+    let app = temp_dir("agy shell");
+    let relative = |id: &str| format!("brain/{id}/.system_generated/logs/transcript_full.jsonl");
+    let target = app.join(relative(id));
+    std::fs::create_dir_all(target.parent().expect("logs")).expect("logs dir");
+    std::fs::copy(fixtures().join("antigravity").join(relative(id)), &target).expect("copy");
+    let other = app.join(relative(newer));
+    std::fs::create_dir_all(other.parent().expect("logs")).expect("logs dir");
+    std::fs::write(&other, "{\"step_index\":1,\"type\":\"PLANNER_RESPONSE\",\"content\":\"NEWER\"}\n")
+        .expect("newer");
+    std::fs::write(
+        app.join("history.jsonl"),
+        format!(
+            "{{\"workspace\":\"/w/proj\",\"conversationId\":\"{id}\"}}\n{{\"workspace\":\"/w/proj\",\"conversationId\":\"{newer}\"}}\n"
+        ),
+    )
+    .expect("history");
+    let run = |conversation: &str| {
+        bin()
+            .env_remove("PLANNOTATOR_TUI_HOST")
+            .env_remove("CODEX_THREAD_ID")
+            .env_remove("COPILOT_CLI")
+            .env_remove("ANTIGRAVITY_CLI_HOME")
+            .env("ANTIGRAVITY_APP_DATA_DIR", &app)
+            .env("ANTIGRAVITY_AGENT", "1")
+            .env("ANTIGRAVITY_CONVERSATION_ID", conversation)
+            .env("PLANNOTATOR_TUI_CWD", "/w/proj")
+            .args(["last", "--print"])
+            .output()
+            .expect("runs")
+    };
+    let exact = run(id);
+    assert_eq!(
+        String::from_utf8_lossy(&exact.stdout).trim_end(),
+        "Done: both settings are applied in `retroarch.cfg`.",
+        "{}",
+        String::from_utf8_lossy(&exact.stderr)
+    );
+    let missing = run("33333333-3333-4333-8333-333333333333");
+    assert_eq!(String::from_utf8_lossy(&missing.stdout), "", "an unknown id never falls back to the folder");
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("no Antigravity conversation 33333333"));
+    std::fs::remove_dir_all(&app).expect("cleanup");
 }
 
 #[test]

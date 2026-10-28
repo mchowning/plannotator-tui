@@ -11,7 +11,8 @@ use ratatui::text::{Line, Text};
 use tui_markdown::{Options, StyleSheet};
 
 use crate::doc::{BlockKind, Document};
-use crate::srcmap::{LineOffsets, align, align_exact};
+use crate::srcmap::{LineOffsets, align};
+use crate::theme::palette;
 use crate::wrap::{Row, clip_line, wrap_line, wrap_table};
 
 /// Rows of vertical space between blocks.
@@ -25,9 +26,9 @@ struct Styles;
 impl StyleSheet for Styles {
     fn heading(&self, level: u8) -> Style {
         match level {
-            1 => Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
-            2 => Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-            _ => Style::new().fg(Color::LightCyan).add_modifier(Modifier::BOLD),
+            1 => Style::new().fg(palette().heading).add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+            2 => Style::new().fg(palette().heading).add_modifier(Modifier::BOLD),
+            _ => Style::new().fg(palette().subheading).add_modifier(Modifier::BOLD),
         }
     }
     fn heading_marker(&self, _level: u8) -> &'static str {
@@ -68,12 +69,8 @@ fn render_block(doc: &Document, index: usize) -> (Text<'static>, Vec<LineOffsets
     let source = doc.block_text(index);
     let text = own(tui_markdown::from_str_with_options(source, &Options::new(Styles)));
     let plain: Vec<String> = text.lines.iter().map(ToString::to_string).collect();
-    let block = doc.blocks.get(index);
-    let base = block.map_or(0, |b| b.range.start);
-    let offsets = match block.map(|b| b.kind) {
-        Some(BlockKind::Table) => align_exact(&plain, source, base),
-        _ => align(&plain, source, base),
-    };
+    let base = doc.blocks.get(index).map_or(0, |b| b.range.start);
+    let offsets = align(&plain, source, base);
     (text, offsets)
 }
 
@@ -235,6 +232,35 @@ mod tests {
         let bold = doc.source.find("**login").expect("present");
         let bold_range = bold..bold + "**login page**".len();
         assert_eq!(layout.rendered_in_range(&doc.source, &bold_range), "login page");
+    }
+
+    #[test]
+    fn every_cell_of_a_long_table_maps_to_its_source() {
+        let doc = Document::parse(
+            "| Item | Status | Next step |\n|---|---|---|\n\
+| A. Four changes from 3/7 (release checklist handoff, the 3/4 planning call, the 3/6 search demo, \
+the 3/4-3/7 progress review and rollout advice) | Scope partly confirmed; never added to the \
+draft | 1.0d design + 1.0d build + 1.0d review + 2.5d rollout = **5.5d** |\n\
+| B. 3/14 cache troubleshooting and the `api.example.com` proxy | Owner and priority not set | Your call |\n\
+| C. 3/19-20 export access in the admin panel (read and write) | Agreed at 1.0d, done once it's \
+tested; it's live, but QA hasn't finished acceptance testing | Close it now, or wait for the next sprint |\n\
+| D. 3/21 lookup and report tools in the CLI; 3/23 plugin consolidation | Marked \"not confirmed\" | Your call |\n"
+                .to_owned(),
+        );
+        let layout = DocLayout::build(&doc, 100);
+        let table = layout.blocks.iter().find(|b| b.kind == BlockKind::Table).expect("a table");
+        let mut cells = 0;
+        for row in &table.rows {
+            let text: String = row.line.spans.iter().map(|s| s.content.as_ref()).collect();
+            for (ch, offset) in text.chars().zip(&row.cells) {
+                if ch.is_alphanumeric() {
+                    let source = offset.and_then(|o| doc.source.get(o..));
+                    assert!(source.is_some_and(|s| s.starts_with(ch)), "{ch:?} is unmapped in {text:?}");
+                    cells += 1;
+                }
+            }
+        }
+        assert!(cells > 300, "only {cells} cells checked");
     }
 
     #[test]

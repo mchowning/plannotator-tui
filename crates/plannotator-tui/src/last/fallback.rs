@@ -7,7 +7,7 @@ use std::process::Command;
 use anyhow::{Context, Result, bail};
 #[cfg(unix)]
 use plannotator_tui_hosts::copilot;
-use plannotator_tui_hosts::{Host, Match, Message, claude, droid, opencode, pi};
+use plannotator_tui_hosts::{Host, Match, Message, antigravity, claude, commandcode, droid, opencode, pi};
 
 use super::LastOptions;
 use super::exact;
@@ -17,9 +17,9 @@ use super::roots::Roots;
 /// How a transcript was chosen, so the UI can say when nothing identified it exactly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Discovery {
-    /// An explicit path, an exact session id, a thread id, the session registered for the
-    /// agent's pid, or the file the agent process itself has open: this transcript is the
-    /// session, not a guess.
+    /// An explicit path, an exact session id, a thread or conversation id, the session
+    /// registered for the agent's pid, or the file the agent process itself has open: this
+    /// transcript is the session, not a guess.
     Exact,
     /// The newest transcript filed under the agent's working directory. Sessions that share
     /// one directory are indistinguishable here.
@@ -66,6 +66,24 @@ pub(super) fn read(
         Host::Pi => {
             let path = find_pi_transcript(cwd, roots, ".pi/agent", "pi")?;
             let messages = readers::pi_messages(&path, pick)?;
+            Ok((path, messages, Discovery::Folder))
+        }
+        Host::CommandCode => {
+            let path = find_commandcode_transcript(cwd, roots)?;
+            let messages = readers::commandcode_messages(&path, pick)?;
+            Ok((path, messages, Discovery::Folder))
+        }
+        Host::Antigravity => {
+            // Inside an `agy` shell its exported conversation id is exact, as Codex's thread id is.
+            let conversation =
+                std::env::var(antigravity::CONVERSATION_ENV).ok().filter(|id| !id.trim().is_empty());
+            if let Some(id) = conversation {
+                let session = exact::resolve(host, &id, cwd, roots)?;
+                let (path, messages) = readers::exact(host, &id, session, pick)?;
+                return Ok((path, messages, Discovery::Exact));
+            }
+            let path = antigravity::find_transcript(&roots.antigravity_home, cwd)?;
+            let messages = readers::antigravity_messages(&path, pick)?;
             Ok((path, messages, Discovery::Folder))
         }
         Host::Omp => bail!(
@@ -176,6 +194,17 @@ fn find_pi_transcript(cwd: &Path, roots: &Roots, default_agent_dir: &str, label:
     let sessions_dir = roots.pi_sessions(default_agent_dir);
     pi::find_transcript(&sessions_dir, cwd).ok_or_else(|| {
         anyhow::anyhow!("no {label} session for {} (looked in {})", cwd.display(), sessions_dir.display())
+    })
+}
+
+fn find_commandcode_transcript(cwd: &Path, roots: &Roots) -> Result<PathBuf> {
+    let projects = roots.commandcode_projects();
+    commandcode::find_transcript(&projects, cwd).ok_or_else(|| {
+        anyhow::anyhow!(
+            "no Command Code session started in {} (looked in {})",
+            cwd.display(),
+            projects.join(commandcode::project_slug(cwd)).display()
+        )
     })
 }
 

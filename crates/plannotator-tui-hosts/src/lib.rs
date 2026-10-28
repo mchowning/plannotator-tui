@@ -5,8 +5,10 @@
 //! `projects_dir`, a process-table snapshot, and an env lookup. The rules come from
 //! Plannotator's `last` implementation (see `docs/decisions.md`, decision 9).
 
+pub mod antigravity;
 pub mod claude;
 pub mod codex;
+pub mod commandcode;
 pub mod copilot;
 pub mod droid;
 pub mod hermes;
@@ -35,6 +37,13 @@ pub enum Host {
     /// `OpenCode`: sessions, messages and parts in `SQLite` (`<xdg data>/opencode/opencode.db`),
     /// addressed by session id or found by the directory `OpenCode` was started in.
     OpenCode,
+    /// Command Code: pi's format under `~/.commandcode/projects/<slug>/<uuid>.jsonl`; Herdr
+    /// reports it as `cmd`.
+    CommandCode,
+    /// Antigravity CLI: `<app data>/brain/<conversation id>/.../transcript_full.jsonl`, the
+    /// app data directory `~/.gemini/antigravity-cli` unless `ANTIGRAVITY_CLI_HOME` or `ANTIGRAVITY_APP_DATA_DIR` moves it;
+    /// Herdr reports it as `agy` with the conversation id.
+    Antigravity,
 }
 
 impl Host {
@@ -49,11 +58,13 @@ impl Host {
             Self::Omp => "omp",
             Self::Hermes => "hermes",
             Self::OpenCode => "opencode",
+            Self::CommandCode => "cmd",
+            Self::Antigravity => "agy",
         }
     }
 
     /// Every host with a transcript reader, for messages that list them.
-    pub const ALL: [Host; 8] = [
+    pub const ALL: [Host; 10] = [
         Host::ClaudeCode,
         Host::Codex,
         Host::Pi,
@@ -62,6 +73,8 @@ impl Host {
         Host::Droid,
         Host::Hermes,
         Host::OpenCode,
+        Host::CommandCode,
+        Host::Antigravity,
     ];
 }
 
@@ -77,6 +90,10 @@ pub fn sniff(head: &str) -> Option<Host> {
     }
     if any(r#""type":"assistant.message""#) || any(r#""type":"session.start""#) {
         return Some(Host::Copilot);
+    }
+    // Antigravity: numbered steps, prompts and replies typed in capitals.
+    if any(r#""step_index""#) && (any(r#""type":"USER_INPUT""#) || any(r#""type":"PLANNER_RESPONSE""#)) {
+        return Some(Host::Antigravity);
     }
     if any(r#""type":"response_item""#) || any(r#""type":"event_msg""#) || any(r#""type":"session_meta""#) {
         return Some(Host::Codex);
@@ -105,6 +122,28 @@ pub struct Message {
     pub text: String,
     /// The host's timestamp, verbatim, when it has one.
     pub at: Option<String>,
+}
+
+/// Newest-first messages up to and including the `n`th assistant reply. `n` counts replies,
+/// never prompts: `last` offers replies, so a prompt still waiting for its answer must not
+/// crowd out the reply before it. Prompts newer than that reply are kept for context.
+pub(crate) fn through_replies(newest_first: impl IntoIterator<Item = Message>, n: usize) -> Vec<Message> {
+    let mut out = Vec::new();
+    let mut replies = 0;
+    for message in newest_first {
+        if replies >= n {
+            break;
+        }
+        replies += usize::from(message.role == Role::Assistant);
+        out.push(message);
+    }
+    out
+}
+
+/// Does `messages` hold an assistant reply? A transcript with prompts only (a conversation
+/// just started) has nothing to annotate, so discovery passes over it.
+pub(crate) fn has_reply(messages: &[Message]) -> bool {
+    messages.iter().any(|message| message.role == Role::Assistant)
 }
 
 /// Which rung of a discovery ladder chose a session, so a caller can say whether the
@@ -172,22 +211,24 @@ impl From<std::io::Error> for HostError {
 }
 
 /// The host-assigned session id a transcript's name carries, when the host's naming
-/// scheme makes it unambiguous: Claude Code and Droid file a session as `<uuid>.jsonl`,
-/// a Codex rollout ends in its thread uuid, and a Copilot session is a directory named by
-/// its uuid. Anything that is not uuid-shaped yields `None`: an arbitrary path handed in
-/// with `--session` must never be mistaken for an id, and a path is never one.
+/// scheme makes it unambiguous: Claude Code, Droid and Command Code file a session as
+/// `<uuid>.jsonl`, a Codex rollout ends in its thread uuid, a Copilot session is a directory
+/// named by its uuid, and an Antigravity transcript sits under `brain/<uuid>/`. Anything that
+/// is not uuid-shaped yields `None`: an arbitrary path handed in with `--session` must never
+/// be mistaken for an id, and a path is never one.
 pub fn session_id_of(host: Host, transcript: &Path) -> Option<String> {
     let candidate = match host {
-        Host::ClaudeCode | Host::Droid => transcript.file_stem()?.to_str()?.to_owned(),
+        Host::ClaudeCode | Host::Droid | Host::CommandCode => transcript.file_stem()?.to_str()?.to_owned(),
         Host::Codex => codex::thread_of(transcript)?,
         Host::Copilot => transcript.file_name()?.to_str()?.to_owned(),
+        Host::Antigravity => antigravity::conversation_of(transcript)?,
         Host::Pi | Host::Omp | Host::Hermes | Host::OpenCode => return None,
     };
     is_uuid(&candidate).then_some(candidate)
 }
 
 /// `8-4-4-4-12` hex groups, any case.
-fn is_uuid(text: &str) -> bool {
+pub(crate) fn is_uuid(text: &str) -> bool {
     let bytes = text.as_bytes();
     bytes.len() == 36
         && bytes.iter().enumerate().all(|(i, b)| match i {
@@ -213,6 +254,8 @@ pub fn detect_host(env: impl Fn(&str) -> Option<String>) -> Result<Host, HostErr
             "omp" | "oh-my-pi" | "ohmypi" => return Ok(Host::Omp),
             "hermes" | "hermes-cli" | "hermes_cli" => return Ok(Host::Hermes),
             "opencode" | "open-code" | "open_code" => return Ok(Host::OpenCode),
+            "cmd" | "command-code" | "command_code" | "commandcode" => return Ok(Host::CommandCode),
+            "agy" | "antigravity" | "antigravity-cli" | "antigravity_cli" => return Ok(Host::Antigravity),
             _ => {}
         }
     }
@@ -221,6 +264,10 @@ pub fn detect_host(env: impl Fn(&str) -> Option<String>) -> Result<Host, HostErr
     }
     if set("COPILOT_CLI") {
         return Ok(Host::Copilot);
+    }
+    // Antigravity CLI exports both into the shells it runs, the id naming the conversation.
+    if set(antigravity::AGENT_ENV) || set(antigravity::CONVERSATION_ENV) {
+        return Ok(Host::Antigravity);
     }
     let ai_agent = env("AI_AGENT").map(|v| v.trim().to_ascii_lowercase());
     // Oh My Pi exports `OMPCODE=1` (and `CLAUDECODE=1`) into the shells it spawns and no

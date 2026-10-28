@@ -5,9 +5,10 @@ use std::ops::Range;
 
 use anyhow::Result;
 use plannotator_tui_schema::{Annotation, Thread};
-use ratatui::crossterm::event::{KeyCode, KeyEvent};
+use ratatui::crossterm::event::KeyEvent;
 
 use super::{App, Mode};
+use crate::keys::{self, Action};
 
 /// What a pending `x` would remove.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,19 +80,22 @@ impl App {
                 }
             }
         };
-        format!(" {question} y remove \u{b7} n keep")
+        let answers = [(Action::Yes, "remove"), (Action::No, "keep")]
+            .into_iter()
+            .filter_map(|(action, label)| self.keys.labelled(action, label))
+            .collect::<Vec<_>>()
+            .join(" \u{b7} ");
+        format!(" {question} {answers}")
     }
 
-    /// `y` or `Enter` removes; `n` or `Esc` keeps; every other key does nothing.
+    /// `yes` or `confirm` removes; `no` or `back` keeps; every other key does nothing.
     pub(super) fn confirm_remove_key(&mut self, key: KeyEvent) -> Result<()> {
-        match key.code {
-            KeyCode::Char('y' | 'Y') | KeyCode::Enter => {
-                match std::mem::replace(&mut self.mode, Mode::Browse) {
-                    Mode::ConfirmRemove(removal) => self.remove(&removal),
-                    _ => Ok(()),
-                }
-            }
-            KeyCode::Char('n' | 'N') | KeyCode::Esc => {
+        match self.keys.action(&key, keys::CONFIRM_REMOVE) {
+            Some(Action::Yes | Action::Confirm) => match std::mem::replace(&mut self.mode, Mode::Browse) {
+                Mode::ConfirmRemove(removal) => self.remove(&removal),
+                _ => Ok(()),
+            },
+            Some(Action::No | Action::Back) => {
                 self.mode = Mode::Browse;
                 Ok(())
             }

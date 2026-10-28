@@ -3,7 +3,7 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use plannotator_tui_hosts::{hermes, opencode};
+use plannotator_tui_hosts::{antigravity, commandcode, hermes, opencode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct Roots {
@@ -12,6 +12,8 @@ pub(super) struct Roots {
     pub(super) codex_home: PathBuf,
     pub(super) copilot_home: PathBuf,
     pub(super) factory_config: PathBuf,
+    /// Antigravity CLI's app data directory: `brain/`, `conversation_summaries.db`, `history.jsonl`.
+    pub(super) antigravity_home: PathBuf,
     pi_session_dir: Option<PathBuf>,
     pi_agent_dir: Option<PathBuf>,
     hermes_home: PathBuf,
@@ -34,6 +36,10 @@ impl Roots {
             codex_home: path("CODEX_HOME").unwrap_or_else(|| home.join(".codex")),
             copilot_home: path("COPILOT_HOME").unwrap_or_else(|| home.join(".copilot")),
             factory_config: path("FACTORY_CONFIG_DIR").unwrap_or_else(|| home.join(".factory")),
+            // agy 1.2.7 reads ANTIGRAVITY_APP_DATA_DIR; ANTIGRAVITY_CLI_HOME is the name reported in #70.
+            antigravity_home: path("ANTIGRAVITY_CLI_HOME")
+                .or_else(|| path("ANTIGRAVITY_APP_DATA_DIR"))
+                .unwrap_or_else(|| home.join(antigravity::DEFAULT_APP_DATA_DIR)),
             pi_session_dir: path("PI_CODING_AGENT_SESSION_DIR"),
             pi_agent_dir: path("PI_CODING_AGENT_DIR"),
             hermes_home,
@@ -47,6 +53,11 @@ impl Roots {
         self.pi_session_dir.clone().unwrap_or_else(|| {
             self.pi_agent_dir.clone().unwrap_or_else(|| self.home.join(default_agent_dir)).join("sessions")
         })
+    }
+
+    /// Command Code reads `$HOME` (else `%USERPROFILE%`) and has no override of its own.
+    pub(super) fn commandcode_projects(&self) -> PathBuf {
+        self.home.join(commandcode::DEFAULT_PROJECTS_DIR)
     }
 
     pub(super) fn hermes_database(&self) -> PathBuf {
@@ -100,12 +111,21 @@ mod tests {
     use super::*;
 
     #[test]
+    fn antigravity_app_data_dir_is_honoured() {
+        let roots = Roots::from_lookup(PathBuf::from("home"), |key| {
+            (key == "ANTIGRAVITY_APP_DATA_DIR").then(|| OsString::from("root/agy app"))
+        });
+        assert_eq!(roots.antigravity_home, PathBuf::from("root/agy app"));
+    }
+
+    #[test]
     fn every_documented_root_override_is_honoured() {
         let values: HashMap<&str, OsString> = [
             ("CLAUDE_CONFIG_DIR", "root/claude".into()),
             ("CODEX_HOME", "root/codex".into()),
             ("COPILOT_HOME", "root/copilot".into()),
             ("FACTORY_CONFIG_DIR", "root/factory".into()),
+            ("ANTIGRAVITY_CLI_HOME", "root/agy".into()),
             ("PI_CODING_AGENT_SESSION_DIR", "root/pi sessions".into()),
             ("PI_CODING_AGENT_DIR", "root/pi agent ignored".into()),
             ("HERMES_HOME", "root/hermes".into()),
@@ -119,6 +139,7 @@ mod tests {
         assert_eq!(roots.codex_home, PathBuf::from("root/codex"));
         assert_eq!(roots.copilot_home, PathBuf::from("root/copilot"));
         assert_eq!(roots.factory_config, PathBuf::from("root/factory"));
+        assert_eq!(roots.antigravity_home, PathBuf::from("root/agy"));
         assert_eq!(roots.pi_sessions(".pi/agent"), PathBuf::from("root/pi sessions"));
         assert_eq!(roots.hermes_database(), PathBuf::from("root/hermes").join(hermes::DB_FILE));
         assert_eq!(roots.opencode_databases(), vec![PathBuf::from("root/opencode/custom.db")]);

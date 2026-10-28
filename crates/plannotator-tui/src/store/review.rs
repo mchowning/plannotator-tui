@@ -96,15 +96,48 @@ impl Store {
 
     /// Replace a body; the annotation is pending again (see [`touch`]).
     pub(crate) fn edit_body(&mut self, id: &str, body: String) -> Result<bool> {
+        self.change(id, |annotation| {
+            if annotation.body == body {
+                return false;
+            }
+            annotation.body = body;
+            true
+        })
+    }
+
+    /// Attach a local image by absolute path. False when the note already has it.
+    pub(crate) fn add_image(&mut self, id: &str, path: &str) -> Result<bool> {
+        self.change(id, |annotation| {
+            let images = &mut annotation.plannotator_tui.images;
+            if images.iter().any(|image| image == path) {
+                return false;
+            }
+            images.push(path.to_owned());
+            true
+        })
+    }
+
+    /// Detach the most recently attached image; `None` when the note has none.
+    pub(crate) fn remove_last_image(&mut self, id: &str) -> Result<Option<String>> {
+        let mut removed = None;
+        self.change(id, |annotation| {
+            removed = annotation.plannotator_tui.images.pop();
+            removed.is_some()
+        })?;
+        Ok(removed)
+    }
+
+    /// Apply `edit` to one annotation and save. When it reports a change, the annotation is
+    /// pending again (see [`touch`]).
+    fn change(&mut self, id: &str, edit: impl FnOnce(&mut Annotation) -> bool) -> Result<bool> {
         self.mutate(None, |record| {
             let Some(annotation) = record.annotations.iter_mut().find(|a| a.id == id) else {
                 return Ok(false);
             };
-            if annotation.body == body {
+            if !edit(annotation) {
                 return Ok(false);
             }
             touch(&record.deliveries, annotation)?;
-            annotation.body = body;
             Ok(true)
         })
     }

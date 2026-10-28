@@ -303,25 +303,23 @@ impl App {
         self.geometry.keys_max_scroll = max_scroll;
     }
 
-    /// The rail's hint for the one thread key that applies to the selected note; empty
-    /// when no session is attached, since the keys would only say so.
-    pub(super) fn rail_thread_hint(&self) -> &'static str {
-        if self.attached_session().is_none() {
-            return "";
-        }
+    /// The rail's hint for the thread keys that apply to the selected note; `None` when no
+    /// session is attached, since the keys would only say so.
+    pub(super) fn rail_thread_hint(&self) -> Option<&'static str> {
+        self.attached_session()?;
         let entries = self.rail();
-        let Some(entry) = entries.get(self.rail_cursor) else { return "" };
+        let entry = entries.get(self.rail_cursor)?;
         match &entry.thread {
-            Some(thread) => {
+            Some(thread) => Some(
                 match (matches!(thread.turn, Turn::Failed { .. } | Turn::Interrupted), thread.resolved) {
-                    (true, false) => "enter open \u{b7} ctrl-t retry \u{b7} ctrl-r resolve \u{b7} ",
-                    (true, true) => "enter open \u{b7} ctrl-t retry \u{b7} ctrl-r unresolve \u{b7} ",
-                    (false, false) => "enter open \u{b7} ctrl-r resolve \u{b7} ",
-                    (false, true) => "enter open \u{b7} ctrl-r unresolve \u{b7} ",
-                }
-            }
-            None if entry.annotation.anchor.kind() == Kind::Comment => "ctrl-t thread \u{b7} ",
-            None => "",
+                    (true, false) => "enter open \u{b7} ctrl-t retry \u{b7} ctrl-r resolve",
+                    (true, true) => "enter open \u{b7} ctrl-t retry \u{b7} ctrl-r unresolve",
+                    (false, false) => "enter open \u{b7} ctrl-r resolve",
+                    (false, true) => "enter open \u{b7} ctrl-r unresolve",
+                },
+            ),
+            None if entry.annotation.anchor.kind() == Kind::Comment => Some("ctrl-t thread"),
+            None => None,
         }
     }
 }

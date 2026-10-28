@@ -1,22 +1,26 @@
 //! A small archive picker: identify a note by file, quote and body, then restore it.
 
 use ratatui::Frame;
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use ratatui::crossterm::event::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 
+use super::draw::picker_help;
 use super::{App, Mode, label};
+use crate::keys::{self, Action};
+use crate::theme::palette;
 
 impl App {
     pub(super) fn archive_key(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Char('j') | KeyCode::Down => self.move_archive_cursor(1),
-            KeyCode::Char('k') | KeyCode::Up => self.move_archive_cursor(-1),
-            KeyCode::Enter => self.restore_selected_archived(),
-            KeyCode::Esc | KeyCode::Char('H' | 'q') => self.mode = Mode::Browse,
-            KeyCode::Char('c') if key.modifiers == KeyModifiers::CONTROL => self.mode = Mode::Browse,
+        match self.keys.action(&key, keys::ARCHIVE) {
+            Some(Action::Down) => self.move_archive_cursor(1),
+            Some(Action::Up) => self.move_archive_cursor(-1),
+            Some(Action::Confirm) => self.restore_selected_archived(),
+            Some(Action::Back | Action::Archive | Action::Quit | Action::Interrupt) => {
+                self.mode = Mode::Browse;
+            }
             _ => {}
         }
     }
@@ -47,7 +51,7 @@ impl App {
     }
 
     pub(super) fn draw_archive(&mut self, frame: &mut Frame) {
-        let area = frame.area();
+        let area = self.viewport(frame.area());
         let width = area.width.saturating_sub(4).clamp(1, 100).min(area.width);
         let height = area.height.saturating_sub(4).clamp(3, 22).min(area.height);
         let rect = Rect {
@@ -60,14 +64,27 @@ impl App {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::new().fg(Color::Cyan))
+            .border_style(Style::new().fg(palette().accent))
             .title(format!(" Archived annotations ({}) ", self.archive_items.len()))
-            .title_bottom(" ↑↓ select · enter/click restore · esc close ");
+            .title_bottom(picker_help(
+                "select",
+                [
+                    // A click restores too, so it is named even with `confirm` unbound.
+                    Some(match self.keys.hint(Action::Confirm) {
+                        key if key.is_empty() => "click restore".to_owned(),
+                        key => format!("{key}/click restore"),
+                    }),
+                    self.keys.labelled(Action::Back, "close"),
+                ],
+            ));
         let inner = block.inner(rect);
         frame.render_widget(block, rect);
         if self.archive_items.is_empty() {
             frame.render_widget(
-                Paragraph::new("No archived annotations. F finishes sent annotations."),
+                Paragraph::new(match self.keys.hint(Action::FinishReview) {
+                    key if key.is_empty() => "No archived annotations.".to_owned(),
+                    key => format!("No archived annotations. {key} finishes sent annotations."),
+                }),
                 inner,
             );
             return;
@@ -83,7 +100,9 @@ impl App {
             let quote = item.annotation.anchor.original_text.split_whitespace().collect::<Vec<_>>().join(" ");
             let body = item.annotation.body.split_whitespace().collect::<Vec<_>>().join(" ");
             let style = if index == self.archive_cursor {
-                Style::new().fg(Color::Black).bg(Color::Cyan)
+                // Reversed accent: the row text takes the terminal background, which an accent
+                // picked to read as text on that background contrasts with.
+                Style::new().fg(palette().accent).add_modifier(Modifier::REVERSED)
             } else {
                 Style::new()
             };

@@ -181,6 +181,7 @@ mod tests {
             author_name: None,
             state: State::Open,
             attachments: Vec::new(),
+            plannotator_tui: crate::NoteExtras::default(),
             created_at: String::new(),
             updated_at: String::new(),
             replies: Vec::new(),

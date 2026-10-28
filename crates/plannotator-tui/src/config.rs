@@ -11,13 +11,16 @@ use std::str::FromStr;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::theme::ThemeSetting;
+use crate::keys::Keymap;
+use crate::theme::{Colors, ThemeSetting};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub(crate) struct Config {
     pub(crate) herdr: HerdrConfig,
     pub(crate) ui: UiConfig,
+    pub(crate) keys: Keymap,
+    pub(crate) colors: Colors,
     pub(crate) threads: ThreadsConfig,
 }
 
@@ -40,13 +43,20 @@ pub(crate) enum ThreadContext {
     Fresh,
 }
 
-/// How the app looks. One key so far; the colours themselves are not configurable yet.
+/// Which palette the app starts from; `[colors]` adjusts individual roles of it.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub(crate) struct UiConfig {
     /// `auto` asks the terminal for its background colour; `light` and `dark` skip the
     /// question. `PLANNOTATOR_TUI_THEME` overrides whatever is written here.
     pub(crate) theme: ThemeSetting,
+    /// Blank columns kept on each side of the app; yields before the app drops below 80.
+    pub(crate) horizontal_margin: u16,
+    /// Widest the app gets, centered in the terminal. Zero fills the terminal.
+    pub(crate) max_width: u16,
+    /// Widest the document's text gets; spare columns sit between it and the rail. Zero
+    /// lets the document take every column the rail leaves.
+    pub(crate) doc_width: u16,
 }
 
 /// How plannotator-tui opens inside Herdr.
@@ -283,8 +293,51 @@ mod tests {
     }
 
     #[test]
+    fn widths_default_to_filling_the_terminal_and_roundtrip() {
+        assert_eq!(Config::default().ui.horizontal_margin, 0);
+        assert_eq!(Config::default().ui.max_width, 0);
+        assert_eq!(Config::default().ui.doc_width, 0);
+        let config =
+            Config::parse("[ui]\nhorizontal_margin = 2\nmax_width = 168\ndoc_width = 120\n").expect("parses");
+        assert_eq!((config.ui.horizontal_margin, config.ui.max_width, config.ui.doc_width), (2, 168, 120));
+        assert_eq!(Config::parse(&config.to_toml().expect("serializes")).expect("parses"), config);
+    }
+
+    #[test]
     fn roundtrips_through_toml() {
         let text = Config::default().to_toml().expect("serializes");
         assert_eq!(Config::parse(&text).expect("parses"), Config::default());
+    }
+
+    #[test]
+    fn colors_are_read_by_role_and_roundtrip() {
+        let config =
+            Config::parse("[colors]\naccent = \"magenta\"\nlooks-good-bg = \"#a6e3a1\"\nblock = \"236\"\n")
+                .expect("parses");
+        assert_eq!(config.colors.accent.map(|c| c.0), Some(ratatui::style::Color::Magenta));
+        assert_eq!(config.colors.looks_good_bg.map(|c| c.0), Some(ratatui::style::Color::Rgb(166, 227, 161)));
+        assert_eq!(config.colors.heading, None);
+        let text = config.to_toml().expect("serializes");
+        assert_eq!(Config::parse(&text).expect("reparses"), config);
+    }
+
+    #[test]
+    fn a_color_may_be_a_bare_index() {
+        let config = Config::parse("[colors]\nheading = 238\n").expect("parses");
+        assert_eq!(config.colors.heading.map(|c| c.0), Some(ratatui::style::Color::Indexed(238)));
+        let err = Config::parse("[colors]\nheading = 256\n").expect_err("out of range");
+        assert!(err.to_string().contains("256"), "{err}");
+    }
+
+    #[test]
+    fn an_unknown_color_role_error_names_the_role() {
+        let err = Config::parse("[colors]\nbackground = \"black\"\n").expect_err("rejected");
+        assert!(err.to_string().contains("background"), "{err}");
+    }
+
+    #[test]
+    fn an_unreadable_color_error_names_the_value() {
+        let err = Config::parse("[colors]\nheading = \"chartreuse\"\n").expect_err("rejected");
+        assert!(err.to_string().contains("chartreuse"), "{err}");
     }
 }

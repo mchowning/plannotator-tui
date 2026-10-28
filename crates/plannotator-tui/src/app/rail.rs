@@ -244,8 +244,13 @@ impl App {
             } else {
                 ""
             };
+            let images = match entry.annotation.plannotator_tui.images.len() {
+                0 => String::new(),
+                1 => " · 1 image".to_owned(),
+                n => format!(" · {n} images"),
+            };
             let title = Span::styled(
-                format!(" {icon}{sent} "),
+                format!(" {icon}{images}{sent} "),
                 match (unread, resolved || (entry.thread.is_none() && !highlighted)) {
                     (true, _) => Style::new().fg(UNREAD),
                     (false, true) => Style::new().fg(Color::DarkGray),

@@ -31,6 +31,7 @@ impl Store {
                     author_name: None,
                     state: plannotator_tui_schema::State::Open,
                     attachments: Vec::new(),
+                    plannotator_tui: plannotator_tui_schema::NoteExtras::default(),
                     created_at: now.clone(),
                     updated_at: now,
                     replies: Vec::new(),

@@ -13,12 +13,13 @@ cargo build --release
 | Where | Keys |
 |---|---|
 | anywhere | `Tab` cycle focus (tree · document · rail) · `E` send feedback (clipboard) · `t` show/hide tree · `r` reload · `q` quit |
-| document | drag with the mouse, or `v` then `hjkl` / `w` `b` / `0` `$` to select; `Enter` confirms · `i` moves the cursor with those keys first, so `v` can start mid-block · `j`/`k` or click selects a block · `c` comments on the block · `a` 👍s it · `x` clears the block's annotations · wide Markdown tables wrap by cell |
+| document | drag with the mouse, or `v` then `hjkl` / `w` `b` / `0` `$` to select; `Enter` confirms · `i` moves the cursor with those keys first, so `v` can start mid-block · `j`/`k` or click selects a block · `c` comments on the block · `a` 👍s it · `x` clears the block's annotations · `X` clears every annotation on the document after a `y` · wide Markdown tables wrap by cell |
 | selection toolbar | `a` 👍 looks good · `c` 💬 comment (opens a box at the selection) · `d` ✗ delete · `Esc` clears |
-| rail | `j`/`k` move · `e` / `Enter` edit body · `x` remove · click a bubble to focus it |
+| rail | `j`/`k` move · `e` / `Enter` edit body · `x` remove · `I` attach a local image by path · `D` remove the last image · click a bubble to focus it |
 | reply review | `S` send feedback and quit; stays open if the agent is at a dialog |
 | file/folder review | `E` send new · `m` review menu (`R` resend all · `F` finish review · `U` undo · `H` archive) |
 | tree | `j`/`k` move · `Enter` open · `.` show/hide hidden (dot-prefixed) entries · `E` send new feedback across files, including collapsed folders · counts show active notes per file |
+| quick open (folder) | `Ctrl+P` find a Markdown file by name anywhere in the folder · type to filter · ↑/↓ or wheel select · `Enter` or click open · `Esc` cancel |
 | archive | `j`/`k` or ↑/↓ select · `Enter` or click restore · `Esc` close |
 
 Selections and exports are copied to the terminal clipboard (OSC 52).

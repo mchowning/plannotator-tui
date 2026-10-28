@@ -100,7 +100,8 @@ reference for `plannotator-tui-hosts`; knowledge copied, not code.
 **Host detection is an env-var chain, then a fallback.** `PLANNOTATOR_ORIGIN` override
 (validated) > `CODEX_THREAD_ID` > `COPILOT_CLI` > `OPENCODE` > `GEMINI_CLI` > `OMPCODE`
 (last: OMP exports it into every shell it spawns) > default Claude Code. We mirror it with
-`PLANNOTATOR_TUI_HOST` as the override. `cwd` is never identity.
+`PLANNOTATOR_TUI_HOST` as the override, and add `ANTIGRAVITY_AGENT` / `ANTIGRAVITY_CONVERSATION_ID`
+(exported into `agy`'s shells) right after `COPILOT_CLI`. `cwd` is never identity.
 
 **Claude Code session resolution — the deterministic part.** Claude Code writes
 `~/.claude/sessions/<pid>.json` per running session: `{pid, sessionId, cwd, startedAt, …}`
@@ -363,6 +364,45 @@ looked up in whichever table holds it. Verified against the `beta` source
 (`packages/core/src/session/sql.ts`, `packages/schema/src/session-message.ts`,
 `packages/util/src/global-roots.ts`) and a mixed-schema fixture reproducing the report.
 
+**Command Code** (2026-10-27, plannotator-tui#106). Command Code writes pi's session format:
+a `session` header with the `cwd`, then `id`/`parentId` entries (`message`, `session_info`,
+`model_change`, ...), so it is pi's reader over another layout,
+`~/.commandcode/projects/<slug>/<uuid>.jsonl`. The slug is `@sindresorhus/slugify(cwd)` or
+`root` (`getProjectDirName` in `command-code` 1.88.0): lowercased, camel case split into
+words, every run of other characters one `-`. That is lossy (`/w/My Proj` and `/w/my-proj`
+share a directory) and non-ASCII is transliterated, which we do not reproduce, so a session
+counts for a cwd only when its header names that cwd: the slug directory is searched first,
+then every project directory, newest by last write as pi ranks them, and a cwd with no
+session of its own yields nothing rather than another folder's reply. The same directories
+hold `<uuid>.checkpoints.jsonl` sidecars; only uuid-named files are sessions. Herdr labels the
+agent `cmd` (the foreground process is `node`, which names no agent), so the label selects the
+host and the pane's cwd selects the session. Command Code reports its session id to Herdr
+when it runs its own Herdr integration; that id is looked up as `<id>.jsonl`, slug directory
+first.
+
+**Antigravity CLI** (2026-10-27, herdr-annotate#70). `agy` keeps one directory per
+conversation in its app data directory (`$ANTIGRAVITY_CLI_HOME` or `$ANTIGRAVITY_APP_DATA_DIR`, else
+`~/.gemini/antigravity-cli`, `%USERPROFILE%` on Windows):
+`brain/<conversation id>/.system_generated/logs/transcript_full.jsonl`, one step per line.
+`transcript.jsonl` beside it truncates long `content` and is never read. A reply is a
+`PLANNER_RESPONSE` step's non-empty `content`, verbatim; a step that only calls tools has
+none. Prompts are `USER_INPUT` steps wrapped in `<USER_REQUEST>`/`<ADDITIONAL_METADATA>`,
+returned as written because only replies are shown. Each step's `step_index` is its message
+id. Herdr labels the agent `agy` and reports the conversation id as `agent_session`
+(`kind: id`), which names the transcript directly. Without an id, the conversation is chosen
+by folder, and a transcript does not record its folder. Two other files do:
+`conversation_summaries.db` (`workspace_uris`, a JSON array of `file://` URIs, per
+`conversation_id`) and `history.jsonl` (each prompt's `workspace`, and its `conversationId`
+from the second prompt on). Both are read, the database read-only through the same
+`immutable` fallback as the other `SQLite` hosts. Subagent rows (`parent_conversation_id`
+set) are skipped. A conversation whose workspace is the cwd wins over one whose workspace only
+contains it, and the newest transcript by last write wins within each. When the database is
+missing or unreadable, the history alone decides. A transcript nobody ties to the cwd is never
+shown, so an unverified newer conversation does not stand in for this folder's. The error
+names both files and the database failure. Verified against `agy` 1.2.7's files on macOS and
+the sample in herdr-annotate#70. The `presence/<id>.lock` files outlive their sessions and are
+not used.
+
 
 ## 15. The cursor can roam before selecting (2026-09-18)
 
@@ -376,3 +416,13 @@ mode still forces the selection to start at the top and be shrunk from below. Sp
 top-level list into one block per item was built and dropped: it made `j`/`k` + `c` reach a
 bullet directly, but changed rendering (a block gap between every bullet) and the block
 model for everyone, when roaming already reaches any line.
+
+## 16. Images on a note are local paths under `plannotator_tui` (2026-10-27)
+
+A note can carry images, rebuilt from plannotator-tui#73. Workspaces' `attachments` holds
+uploaded `https://` URLs and rejects anything else, so a local file cannot go there. The
+paths live in the annotation's own `plannotator_tui` namespace (`{"images": ["/abs/a.png"]}`),
+omitted when empty, so a note without images keeps the server shape and older records load
+unchanged. Feedback writes one `Image: <absolute path>` line per image: the whole line is the
+path, so spaces need no escaping, and agents open a path more readily than a `file://` URL.
+Nothing is copied or uploaded; uploading belongs to a future Workspaces sync.

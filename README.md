@@ -41,6 +41,13 @@ Homebrew 6 asks you to trust a third-party tap once before installing from it.
 Prebuilt binaries for macOS, Linux and Windows are on the
 [releases page](https://github.com/plannotator/plannotator-tui/releases).
 
+On x86_64 Linux, choose `plannotator-tui-x86_64-unknown-linux-musl` if the GNU
+binary reports a missing `GLIBC_*` version, or if you use Alpine. This static
+musl build does not require system glibc or a local Rust toolchain. Existing
+GNU/Linux binaries remain available. Verify your download against `SHA256SUMS`
+from the same release, make it executable, and put it on your `PATH` as
+`plannotator-tui`.
+
 ## Use
 
 ```sh
@@ -49,9 +56,17 @@ plannotator-tui docs               # a folder: file tree on the left, counts per
 plannotator-tui last               # your coding agent's recent replies, pick one, annotate it
 ```
 
-Drag with the mouse (or `v` and move) to select, then `a` 👍 · `c` 💬 · `d` ✗. `E` copies the
-feedback to the clipboard as numbered annotations (`# Annotations on plan.md`, `## Annotation 1
-(line 12)`, …). Every annotation is saved as JSON the moment you make it; `q` closes.
+Drag with the mouse (or `v`, move, then `Enter`) to select, then `a` 👍 · `c` 💬 · `d` ✗. `E`
+copies the feedback to the clipboard as numbered annotations (`# Annotations on plan.md`,
+`## Annotation 1 (line 12)`, …). Every annotation is saved as JSON the moment you make it; `q`
+closes.
+
+`I` attaches a local image to the selected note (in the notes, or the selected block's note in
+the document): type, paste or drop its path, then `Enter`. Quoted, `~` and `file://` paths
+work; a relative path starts at the document's folder. PNG, JPEG, GIF, WebP, BMP and SVG files
+are accepted. The feedback lists each one as `Image: /absolute/path.png` under its note, so the
+agent opens it from your disk; nothing is copied or uploaded. `D` removes the last image added.
+Adding or removing an image makes a sent note pending again.
 
 `C` writes a general comment about the whole document or reply instead of one passage. There
 is one per document: `C` again reopens it. It sits at the top of the notes and is sent first,
@@ -85,16 +100,26 @@ dimmed. The keys also work without opening the menu.
 
 | Where | Keys |
 |---|---|
-| anywhere | `?` list the keys that work in this review (`/` filters it); `Tab` cycle tree · document · notes, landing on the note nearest the selection; `C` general comment; `E` send; `t` tree; `r` reload; `q` quit |
+| anywhere | `?` list the keys that work in this review (`/` filters it); `Tab` cycle tree · document · notes, landing on the note nearest the selection; `C` general comment; `E` send; `t` tree; `r` reload; `o` open the file in `$EDITOR`; `q` quit |
 | reply review | `S` send and close |
-| document | `j`/`k` block, or row in a table, or item in a list; `c` comment on the block, row or item (double-click for a whole table or list); `a` 👍 it; `x` clear its annotations (a row's or item's alone); `v` select with `hjkl` `w` `b` `0` `$`; `V` select whole rows; `i` move the cursor with those keys first, then `v` to select from there; `/` search the document text (not notes), `n`/`N` next/previous match, `Esc` clears the highlight; `→` or `l` notes |
+| document | `j`/`k` block, or row in a table, or item in a list; `c` comment on the block, row or item (double-click for a whole table or list); `a` 👍 it; `x` clear its annotations (a row's or item's alone); `X` clear every annotation on the document, after a `y`; `v` select with `hjkl` `w` `b` `0` `$`, `Enter` to finish; `V` select whole rows; `i` move the cursor with those keys first, then `v` to select from there; `/` search the document text (not notes), `n`/`N` next/previous match, `Esc` clears the highlight; `I`/`D` attach or remove an image on the block's note; `→` or `l` notes |
 | toolbar | `a` looks good · `c` comment · `d` delete · `Esc` |
-| notes | `j`/`k`; `←`, `h` or `Esc` document; `e` edit; `x` remove (asks first; so does `x` on a block); click a bubble; `Enter` edits a comment or opens a thread; `u` marks a note unread or read; `n`/`N` next/previous unread |
+| notes | `j`/`k`; `←`, `h` or `Esc` document; `e` edit; `x` remove (asks first; so does `x` on a block); `I` attach an image, `D` remove the last; click a bubble; `Enter` edits a comment or opens a thread; `u` marks a note unread or read; `n`/`N` next/previous unread |
 | comment input (attached) | `Enter` saves a comment · `Ctrl-T` saves it as a thread |
 | notes (attached) | `Ctrl-T` makes a comment a thread, or retries a failed or interrupted turn · `Ctrl-R` resolves or unresolves a thread |
 | thread panel | type, `Enter` reply · `Ctrl-N` note for the main agent · `Ctrl-T` retry · `Ctrl-R` resolve or unresolve · `PgUp`/`PgDn` or the wheel scroll · `Esc` close |
 | file/folder review | `E` send new · `m` review menu (`R` resend all · `F` finish review · `U` undo · `H` archive) |
+| folder review | `Ctrl+P` open a file by name, including in collapsed folders: type, `↑`/`↓` or click, `Enter`, `Esc` |
 | tree | `j`/`k`; `Enter` open; `.` show/hide dot-prefixed entries (`.agents/`, `.github/`); `E` sends new notes across all reviewed files, including collapsed folders |
+
+These are the defaults; every key can be rebound under `[keys]` (see [Keys](#keys)).
+
+`o` hands the terminal to `$VISUAL` (or `$EDITOR`, which may carry flags such as `code -w`)
+on the open file, at the current line for vim, nvim, nano, helix, emacs, micro and kak. When
+the editor exits the viewer comes back and, if the file changed, reloads it as `r` does so
+notes re-anchor. A GUI editor without its wait flag returns at once; save later and the
+footer says the file changed. Reply and terminal reviews have no file, so `o` does nothing
+there.
 
 Hidden folders are out of the tree until `.` asks for them, and `.git`, `.hg`, `.svn`,
 `.jj`, `.cache`, `.direnv`, `.venv`, `venv`, `__pycache__`, `node_modules`, `vendor`,
@@ -102,12 +127,18 @@ Hidden folders are out of the tree until `.` asks for them, and `.git`, `.hg`, `
 Showing or hiding is a view choice: notes recorded for a file inside a hidden folder are
 part of the review and are sent whether or not its folder is listed.
 
+`Ctrl+P` matches file names, not contents, ignoring case and allowing gaps (`prd` finds
+`product-requirements.md`). Results show the path within the folder, so files with the same
+name are told apart, and opening one expands the tree down to it. It follows the tree's
+hidden-entries setting and skips the same folders the tree does.
+
 ## Inside Herdr
 
 Install [Herdr Annotate](https://github.com/plannotator/herdr-annotate); it bundles this binary,
-opens it in a pane with `prefix+o` (folder) or `prefix+shift+o` (agent's last reply) or by
-Ctrl-clicking a `file://…md` link, and the header button sends the review straight back to
-the agent as its next message: `Send 3 new ▸ claude in w1:p2 (E)`. Folder reviews show
+opens it in a pane with `prefix+o` (folder) or `prefix+shift+o` (agent's last reply), and the
+header button sends the review straight back to the agent as its next message:
+`Send 3 new ▸ claude in w1:p2 (E)`. Ctrl-clicking a `file://…md` link opens it in Annotate only
+if you install the add-on: `herdr plugin install plannotator/herdr-annotate/links`. Folder reviews show
 `Send 3 new across 2 files` and send one combined feedback message.
 
 ```toml
@@ -145,6 +176,94 @@ wins over the file, and `plannotator-tui config` prints whichever is in effect. 
 backgrounds plannotator-tui paints itself change; the document keeps your terminal's own
 colours either way.
 
+`[colors]` replaces individual roles of whichever palette is in force; a role left out keeps
+its light or dark value. A colour is a name (`yellow`, `light-cyan`), a 256-colour index
+(`238`, quoted or not) or `#rrggbb`. An unknown role or colour is an error that names it, and
+`plannotator-tui config` prints the roles you set. Every role, with the dark palette's values
+(apart from `selection`, which is reverse video by default):
+
+```toml
+[colors]
+accent = "cyan"          # focused borders and gutter, the open file, menu and picker frames
+heading = "cyan"         # every heading level
+comment = "yellow"       # comment titles, the compose box, annotated rows in the gutter
+looks-good = "green"
+delete = "red"           # also the struck-through text
+comment-bg = "58"        # the tint under commented text
+looks-good-bg = "22"     # the tint under looks-good text
+block = "236"            # the focused block and the focused tree row
+toolbar = "238"          # the floating toolbar and the idle header buttons
+cursor = "240"           # the keyboard cursor cell
+selection = "#45475a"    # a character selection, a picker row, a menu row
+```
+
+`cursor` and `selection` become plain backgrounds when set: the text on them keeps the
+terminal's colour.
+
+On a wide terminal, `[ui]` can keep the text to a readable measure:
+
+```toml
+[ui]
+doc_width = 100          # the document's text columns; spare columns sit before the notes
+max_width = 160          # center the whole app in this many columns
+horizontal_margin = 2    # blank columns on each side
+```
+
+All three default to `0`, which fills the terminal as before. The margin and `max_width`
+yield before the app drops below 80 columns, so a narrow pane keeps its notes rail; a
+narrow pane also lets the document shrink below `doc_width`.
+
+### Keys
+
+Every key is rebindable under `[keys]`: an action, and the keys that run it.
+
+```toml
+[keys]
+left = ["j", "Left"]   # jkl; instead of hjkl
+down = ["k", "Down"]
+up = ["l", "Up"]
+right = [";", "Right"]
+line-start = ["^", "Home"]
+```
+
+An entry replaces that action's keys and leaves every other action at its default; `[]`
+unbinds it. A key is one character (`G` is Shift+g), `ctrl+<character>`, or one of `Up`,
+`Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown`, `Enter`, `Esc`, `Tab`,
+`Delete`, `Backspace`. An action keeps its meaning everywhere it applies, so `down` moves
+down in the document, the tree, the notes and every picker. A key bound to two actions that
+are live at the same time is an error that names both, and the hints at the bottom of the
+screen show your keys. `plannotator-tui config` prints every action with its keys.
+
+| Action | Default | Does |
+|---|---|---|
+| `up` `down` `left` `right` | `k` `j` `h` `l`, arrows | move; `right` in the document goes to the notes and `left` in the notes comes back; `right` in the tree opens |
+| `word-forward` `word-back` `word-end` | `w` `b` `e` | cursor to the next or previous word, or the end of this one |
+| `line-start` `line-end` | `0` `$`, `Home` `End` | cursor to the start or end of the line |
+| `page-down` `page-up` | `ctrl+d` `ctrl+u`, `PageDown` `PageUp` | half a page |
+| `top` `bottom` | `g` `G`, `Home` `End` | first or last block |
+| `confirm` `back` | `Enter` `Esc` | finish, open, run; cancel, close |
+| `quit` `interrupt` | `q` `ctrl+c` | quit |
+| `cycle-focus` | `Tab` | tree · document · notes |
+| `send` `send-and-close` | `E` `S` | send; send and close a reply review |
+| `toggle-tree` `reload` `pick-message` | `t` `r` `p` | show/hide the tree; reload; choose another reply |
+| `open-in-editor` | `o` | edit the open file in `$VISUAL` or `$EDITOR`, then reload it |
+| `quick-open` | `ctrl+p` | find a file by name in a folder review |
+| `review-menu` | `m` | the Review menu |
+| `resend-all` `finish-review` `undo-finish` `archive` | `R` `F` `U` `H` | file and folder review actions |
+| `toggle-hidden` | `.` | show/hide dot-prefixed entries in the tree |
+| `edit` `remove` | `e` `x`, `Delete` | the selected note |
+| `attach-image` `remove-image` | `I` `D` | an image on the selected note, or the selected block's |
+| `visual` `visual-line` `move-cursor` | `v` `V` `i` | select with the cursor, or whole rows; move it first |
+| `comment` `clear-block` | `c` `x` | on the block; clear its annotations |
+| `clear-all` | `X` | every annotation on the document, after `yes` |
+| `looks-good` `delete` | `a` `d` | toolbar, with `comment`; `looks-good` also 👍s the selected block, row or item |
+| `yes` `no` | `y` `n`, `Y` `N` | the send-before-quitting, remove and clear-all questions |
+| `help` | `?` | the list of keys that work in this review |
+| `general-comment` | `C` | the general comment on the whole document |
+| `search` `next` `previous` | `/` `n` `N` | search the document; `next`/`previous` step through matches, or through unread notes in the rail |
+| `toggle-unread` | `u` | mark the selected note unread or read |
+| `thread` `resolve` | `ctrl+t` `ctrl+r` | in the notes, with a session attached: make a comment a thread or retry its turn; resolve or unresolve it |
+
 Actions forwarded by Herdr Mirror default to a split beside the invoking remote
 pane. Mirror does not preserve overlay presentation, and Herdr 0.8.2 opens an
 overlay in its server's active tab, which can differ from the tab you are viewing.
@@ -154,7 +273,7 @@ An explicit `--placement` or `PLANNOTATOR_TUI_PLACEMENT` still takes precedence.
 
 `plannotator-tui last` finds the transcript of the agent that launched your shell and shows a
 picker of its recent replies. Hosts: Claude Code, Codex, pi, Oh My Pi, GitHub Copilot CLI,
-Droid, Hermes CLI, OpenCode (1 and 2). `--host`, `--pid`, `--session <transcript>` (format sniffed when
+Droid, Hermes CLI, OpenCode (1 and 2), Command Code (`cmd`), Antigravity CLI (`agy`). `--host`, `--pid`, `--session <transcript>` (format sniffed when
 no host is named) and `--session-id <id>` (Hermes, OpenCode) override detection; `--stdin`
 reads a document; `--newest` skips the picker and opens the newest reply straight away, with
 `p` still opening the picker on the rest;

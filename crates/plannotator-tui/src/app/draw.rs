@@ -11,6 +11,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
 use super::{App, Focus, GUTTER, Geometry, Mode, TOOLBAR};
+use crate::keys::Action;
 use crate::theme::palette;
 
 const RAIL_WIDTH: u16 = 36;
@@ -28,9 +29,9 @@ pub(super) const UNREAD: Color = Color::Indexed(208);
 
 pub(super) fn accent(kind: Kind) -> Color {
     match kind {
-        Kind::Comment => Color::Yellow,
-        Kind::LooksGood => Color::Green,
-        Kind::Delete => Color::Red,
+        Kind::Comment => palette().comment,
+        Kind::LooksGood => palette().looks_good,
+        Kind::Delete => palette().delete,
         Kind::General => Color::Magenta,
     }
 }
@@ -46,7 +47,7 @@ fn priority(kind: Kind) -> u8 {
 
 impl App {
     pub(crate) fn draw(&mut self, frame: &mut Frame) {
-        let area = frame.area();
+        let area = self.viewport(frame.area());
         let [header, focus_row, body, footer] = Layout::vertical([
             Constraint::Length(self.header_height(area.width)),
             Constraint::Length(1),
@@ -65,11 +66,21 @@ impl App {
         } else {
             0
         };
+        // `[ui] doc_width` caps the text; the columns it leaves sit between it and the rail.
+        // Only a cap that binds changes the split, so an unset or roomy cap lays out as before.
+        let gap = u16::from(rail_width > 0);
+        let room = body.width.saturating_sub(tree_width + GUTTER + gap + rail_width);
+        let cap = self.ui.doc_width.max(20);
+        let (text, spare) = if self.ui.doc_width > 0 && room > cap {
+            (Constraint::Length(cap), Constraint::Min(gap))
+        } else {
+            (Constraint::Min(20), Constraint::Length(gap))
+        };
         let [tree, gutter, doc, _gap, rail] = Layout::horizontal([
             Constraint::Length(tree_width),
             Constraint::Length(GUTTER),
-            Constraint::Min(20),
-            Constraint::Length(u16::from(rail_width > 0)),
+            text,
+            spare,
             Constraint::Length(rail_width),
         ])
         .areas(body);
@@ -107,19 +118,29 @@ impl App {
             Mode::Compose => self.draw_compose(frame, &self.compose_title("comment")),
             Mode::Edit(_) => self.draw_compose(frame, &self.compose_title("edit")),
             Mode::General { .. } => self.draw_compose(frame, &self.compose_title("general")),
+            Mode::AttachImage(_) => {
+                self.draw_compose(frame, " image path \u{b7} enter attaches \u{b7} esc cancels ");
+            }
             Mode::Browse if self.pending.is_some() => self.draw_toolbar(frame),
             Mode::Pick => self.draw_pick(frame),
+            Mode::FileSearch => self.draw_file_search(frame),
             Mode::Archive => self.draw_archive(frame),
             Mode::ReviewMenu => self.draw_review_menu(frame),
             Mode::Keys => self.draw_key_list(frame),
-            Mode::Browse | Mode::ConfirmQuit | Mode::ConfirmRemove(_) | Mode::Thread(_) | Mode::Search => {}
+            Mode::Browse
+            | Mode::ConfirmQuit
+            | Mode::ConfirmRemove(_)
+            | Mode::ConfirmClearAll
+            | Mode::Thread(_)
+            | Mode::Search => {}
         }
     }
 
     fn draw_tree(&self, frame: &mut Frame, area: Rect) {
         let Some(tree) = &self.tree else { return };
         let focused = self.focus == Focus::Tree;
-        let border = if focused { Style::new().fg(Color::Cyan) } else { Style::new().fg(Color::DarkGray) };
+        let border =
+            if focused { Style::new().fg(palette().accent) } else { Style::new().fg(Color::DarkGray) };
         let block = Block::default().borders(Borders::RIGHT).border_style(border);
         let inner = block.inner(area);
         frame.render_widget(block, area);
@@ -143,7 +164,7 @@ impl App {
                 };
                 let mut style = if row.is_dir { Style::new().dim() } else { Style::new() };
                 if open_path == Some(row.path.as_path()) {
-                    style = style.bold().fg(Color::Cyan);
+                    style = style.bold().fg(palette().accent);
                 }
                 let row_bg = (focused && i == self.tree_cursor).then(|| palette().block_bg);
                 if let Some(bg) = row_bg {
@@ -158,7 +179,7 @@ impl App {
                 Line::from(vec![
                     Span::styled(format!(" {name}"), style),
                     Span::styled(" ".repeat(pad), with_bg(Style::new())),
-                    Span::styled(count, with_bg(Style::new().fg(Color::Yellow))),
+                    Span::styled(count, with_bg(Style::new().fg(palette().comment))),
                 ])
             })
             .collect();
@@ -219,7 +240,7 @@ impl App {
                     Kind::Comment | Kind::General => Style::new().bg(palette().comment_bg),
                     Kind::LooksGood => Style::new().bg(palette().approve_bg),
                     Kind::Delete => {
-                        Style::new().fg(Color::Red).add_modifier(Modifier::CROSSED_OUT | Modifier::DIM)
+                        Style::new().fg(palette().delete).add_modifier(Modifier::CROSSED_OUT | Modifier::DIM)
                     }
                 };
                 buf.set_style(Rect { x: doc.x + col as u16, y: screen_y, width: 1, height: 1 }, style);
@@ -260,8 +281,8 @@ impl App {
             }
 
             let marker = match (selected_rows.contains(&row_index), row_has_annotation) {
-                (true, _) => Span::styled("▍", Style::new().fg(Color::Cyan)),
-                (false, true) => Span::styled("▍", Style::new().fg(Color::Yellow)),
+                (true, _) => Span::styled("▍", Style::new().fg(palette().accent)),
+                (false, true) => Span::styled("▍", Style::new().fg(palette().comment)),
                 (false, false) => Span::raw(" "),
             };
             buf.set_span(gutter.x, screen_y, &marker, 1);
@@ -291,7 +312,13 @@ impl App {
     }
 
     fn draw_toolbar(&mut self, frame: &mut Frame) {
-        let labels: Vec<String> = TOOLBAR.iter().map(|(g, l, k, _)| format!(" {g} {l} ({k}) ")).collect();
+        let labels: Vec<String> = TOOLBAR
+            .iter()
+            .map(|(g, l, a, _)| match self.keys.hint(*a) {
+                key if key.is_empty() => format!(" {g} {l} "),
+                key => format!(" {g} {l} ({key}) "),
+            })
+            .collect();
         let width: u16 = labels.iter().map(|l| l.width() as u16).sum::<u16>() + 1;
         let Some(rect) = self.float_origin(1, width) else { return };
         frame.render_widget(Clear, rect);
@@ -339,15 +366,15 @@ impl App {
             .float_origin(height, COMPOSE_WIDTH)
             .or_else(|| self.edit_origin(height, COMPOSE_WIDTH))
             .unwrap_or_else(|| {
-                let area = frame.area();
+                let area = self.viewport(frame.area());
                 let width = COMPOSE_WIDTH.min(area.width);
-                Rect { x: (area.width - width) / 2, y: area.height / 2, width, height }
+                Rect { x: area.x + (area.width - width) / 2, y: area.y + area.height / 2, width, height }
             });
         frame.render_widget(Clear, rect);
         let boxed = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::new().fg(Color::Yellow))
+            .border_style(Style::new().fg(palette().comment))
             .title(Span::styled(title.to_owned(), Style::new().dim()));
         let inner = boxed.inner(rect);
         frame.render_widget(boxed, rect);
@@ -368,7 +395,7 @@ impl App {
     }
 
     fn edit_origin(&self, height: u16, width: u16) -> Option<Rect> {
-        let Mode::Edit(id) = &self.mode else { return None };
+        let (Mode::Edit(id) | Mode::AttachImage(id)) = &self.mode else { return None };
         let (rect, _) = self.geometry.bubbles.iter().find(|(_, bubble_id)| bubble_id == id)?;
         let area = self.geometry.doc.union(*rect);
         let x = rect.right().saturating_sub(width).max(area.x);
@@ -383,10 +410,28 @@ impl App {
         if self.mode == Mode::ConfirmQuit {
             // The question owns the footer: the browse help would name keys that are not
             // live while it is up.
-            let question = format!(
-                " send feedback to {}? y send · c + comment · n quit · esc cancel",
-                self.delivery.describe()
-            );
+            let answers = [
+                (Action::Yes, "send"),
+                (Action::Comment, "+ comment"),
+                (Action::No, "quit"),
+                (Action::Back, "cancel"),
+            ]
+            .into_iter()
+            .filter_map(|(action, label)| self.keys.labelled(action, label))
+            .collect::<Vec<_>>()
+            .join(" · ");
+            let question = format!(" send feedback to {}? {answers}", self.delivery.describe());
+            frame.render_widget(Paragraph::new(Line::from(Span::raw(question).bold())), area);
+            return;
+        }
+        if self.mode == Mode::ConfirmClearAll {
+            let answers = [(Action::Yes, "clear"), (Action::No, "cancel")]
+                .into_iter()
+                .filter_map(|(action, label)| self.keys.labelled(action, label))
+                .collect::<Vec<_>>()
+                .join(" · ");
+            let question =
+                format!(" clear all {} annotation(s) on current document? {answers}", self.open.store.len());
             frame.render_widget(Paragraph::new(Line::from(Span::raw(question).bold())), area);
             return;
         }
@@ -402,10 +447,12 @@ impl App {
             return;
         }
         if self.mode == Mode::Browse && !self.undo_archive.is_empty() {
-            let label = " U Undo finish ";
+            let label = self.keys.labelled(Action::UndoFinish, "Undo finish");
+            let label = format!(" {} ", label.as_deref().unwrap_or("Undo finish"));
             let width = (label.width() as u16).min(area.width);
             let rect = Rect { x: area.right() - width, y: area.y, width, height: area.height };
-            frame.render_widget(Paragraph::new(label).style(Style::new().fg(Color::Cyan)), rect);
+            frame
+                .render_widget(Paragraph::new(label.as_str()).style(Style::new().fg(palette().accent)), rect);
             self.geometry.undo_button = Some(rect);
             area.width = area.width.saturating_sub(width);
         }
@@ -428,29 +475,21 @@ impl App {
                 None => self.position_status(),
             },
         ]);
-        if frame.area().width < RAIL_MIN_TOTAL_WIDTH {
+        if self.viewport(frame.area()).width < RAIL_MIN_TOTAL_WIDTH {
             parts.push("rail hidden: widen to ≥80 cols".into());
         }
-        // `S` is bound only in a reply review, so only a reply review names it.
-        let quit = if self.is_file_review() { "q quit " } else { "S send+quit · q quit " };
+        let help = self.footer_help();
+        let help = if help.is_empty() { String::new() } else { format!("{} ", help.join(" · ")) };
         // The status must stay readable at any width, so the key help yields columns to it
         // (and is clipped) rather than the other way round.
         let status_width = self.status.as_ref().map_or(0, |s| s.width() + 1) as u16;
         let available = area.width.saturating_sub(status_width.max(10));
-        let pointed = |help: String| super::keys::with_pointer(help, available);
-        let help = match self.focus {
-            _ if matches!(self.mode, Mode::Thread(_)) => {
-                "enter reply · ctrl-n note · ctrl-t retry · pgup/pgdn scroll ".to_owned()
-            }
-            _ if self.pending.is_some() => "a looks good · c comment · d delete · esc clear ".to_owned(),
-            Focus::Tree => pointed("j/k · enter open · . hidden · E send · t hide · q quit ".to_owned()),
-            Focus::Rail => {
-                pointed(format!("j/k · {}e edit · x remove · tab · {quit}", self.rail_thread_hint()))
-            }
-            Focus::Document if self.roam => {
-                pointed(format!("hjkl move · v select · c comment · esc blocks · {quit}"))
-            }
-            Focus::Document => pointed(format!("i move · v select · c comment · E send · tab · {quit}")),
+        // The thread panel and the toolbar are answered on the spot; elsewhere the pointer
+        // to the key list leads when the whole line fits.
+        let help = if matches!(self.mode, Mode::Thread(_)) || self.pending.is_some() {
+            help
+        } else {
+            super::keys::with_pointer(help, available)
         };
         let help_width = (help.width() as u16).min(available);
         let [left_area, right_area] =
@@ -461,4 +500,95 @@ impl App {
         );
         frame.render_widget(Paragraph::new(Line::from(Span::raw(help).dim()).right_aligned()), right_area);
     }
+
+    /// The key help for the focused pane, in the user's keys.
+    fn footer_help(&self) -> Vec<String> {
+        // Each hint names its action's first key; an unbound action drops out of the line.
+        let key = |action, label| self.keys.labelled(action, label);
+        let bare = |hint: String| (!hint.is_empty()).then_some(hint);
+        let up_down = bare(
+            [Action::Down, Action::Up]
+                .map(|action| self.keys.hint(action))
+                .iter()
+                .filter(|k| !k.is_empty())
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("/"),
+        );
+        let tab = bare(self.keys.hint(Action::CycleFocus));
+        // `send-and-close` is bound only in a reply review, so only a reply review names it.
+        let send_and_close =
+            if self.is_file_review() { None } else { key(Action::SendAndClose, "send+quit") };
+        let quit = [send_and_close, key(Action::Quit, "quit")];
+        // The image keys act on the current note; removing is offered only when it has one.
+        let note = self.current_note();
+        let has_images = note.as_deref().is_some_and(|id| self.open.store.has_images(id));
+        let remove_image = has_images.then(|| key(Action::RemoveImage, "remove image")).flatten();
+        let help: Vec<Option<String>> = match self.focus {
+            _ if matches!(self.mode, Mode::Thread(_)) => {
+                return ["enter reply", "ctrl-n note", "ctrl-t retry", "pgup/pgdn scroll"]
+                    .map(String::from)
+                    .to_vec();
+            }
+            _ if self.pending.is_some() => vec![
+                key(Action::LooksGood, "looks good"),
+                key(Action::Comment, "comment"),
+                key(Action::Delete, "delete"),
+                key(Action::Back, "clear"),
+            ],
+            Focus::Tree => vec![
+                up_down,
+                key(Action::Confirm, "open"),
+                key(Action::ToggleHidden, "hidden"),
+                key(Action::Send, "send"),
+                key(Action::ToggleTree, "hide"),
+                key(Action::Quit, "quit"),
+            ],
+            Focus::Rail => [
+                up_down,
+                self.rail_thread_hint().map(str::to_owned),
+                key(Action::Edit, "edit"),
+                key(Action::Remove, "remove"),
+                key(Action::AttachImage, "image"),
+                remove_image,
+                tab,
+            ]
+            .into_iter()
+            .chain(quit)
+            .collect(),
+            Focus::Document if self.roam => [
+                bare(self.keys.directions_hint()).map(|keys| format!("{keys} move")),
+                key(Action::Visual, "select"),
+                key(Action::Comment, "comment"),
+                key(Action::Back, "blocks"),
+            ]
+            .into_iter()
+            .chain(quit)
+            .collect(),
+            Focus::Document => [
+                key(Action::MoveCursor, "move"),
+                key(Action::Visual, "select"),
+                key(Action::Comment, "comment"),
+                note.is_some().then(|| key(Action::AttachImage, "image")).flatten(),
+                remove_image,
+                key(Action::Send, "send"),
+                tab,
+            ]
+            .into_iter()
+            .chain(quit)
+            .collect(),
+        };
+        // Quick Open works from any pane of a folder review, so every pane's help names it,
+        // last.
+        let find =
+            if self.tree.is_some() && self.pending.is_none() { key(Action::QuickOpen, "find") } else { None };
+        help.into_iter().chain([find]).flatten().collect()
+    }
+}
+
+/// A picker's bottom help: the arrows that move its cursor, then the bound keys.
+pub(super) fn picker_help(moves: &str, keys: impl IntoIterator<Item = Option<String>>) -> String {
+    let parts: Vec<String> =
+        std::iter::once(format!("\u{2191}\u{2193} {moves}")).chain(keys.into_iter().flatten()).collect();
+    format!(" {} ", parts.join(" \u{b7} "))
 }
