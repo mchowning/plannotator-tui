@@ -43,7 +43,9 @@ pub(crate) fn feedback_with_detached(
     }
     let mut out = format!("# Annotations on {name}\n\n");
     if let Some(general) = general {
-        let _ = writeln!(out, "## General feedback\n> {}\n", quote_lines(general.body.trim()));
+        let _ = writeln!(out, "## General feedback\n> {}", quote_lines(general.body.trim()));
+        write_images(&mut out, general);
+        out.push('\n');
     }
     for (i, entry) in entries.iter().enumerate() {
         let quoted = entry.quote.as_str();
@@ -75,10 +77,7 @@ pub(crate) fn feedback_with_detached(
                 let _ = writeln!(out, "> {}", quote_lines(body));
             }
         }
-        // A whole line per path, so a path with spaces needs no quoting or escaping.
-        for image in &entry.annotation.plannotator_tui.images {
-            let _ = writeln!(out, "Image: {image}");
-        }
+        write_images(&mut out, entry.annotation);
         for reply in &entry.annotation.replies {
             let who = reply.author.as_deref().unwrap_or("reply");
             let _ = writeln!(out, "- **Reply ({who}):** {}", reply.body.replace('\n', "\n  "));
@@ -108,7 +107,15 @@ fn write_thread(out: &mut String, quote: &str, annotation: &Annotation) {
         };
         let _ = writeln!(out, "- **{who}:** {}", message.body.trim().replace('\n', "\n  "));
     }
+    write_images(out, annotation);
     out.push('\n');
+}
+
+/// A whole line per path, so a path with spaces needs no quoting or escaping.
+fn write_images(out: &mut String, annotation: &Annotation) {
+    for image in &annotation.plannotator_tui.images {
+        let _ = writeln!(out, "Image: {image}");
+    }
 }
 
 /// A fence longer than any backtick run inside the text, so quoted markdown cannot escape.
@@ -214,6 +221,31 @@ mod tests {
         assert_eq!(
             feedback_with_detached("plan.md", Some(&general), &[], &[]),
             "# Annotations on plan.md\n\n## General feedback\n> Fine overall.\n\n"
+        );
+    }
+
+    #[test]
+    fn the_general_comment_lists_its_images() {
+        let (mut comment, _) = annotation("text\n", "text", Kind::Comment, "");
+        comment.plannotator_tui.images = vec!["/shots/overview.png".into()];
+        let general = Annotation { anchor: Anchor::general(), body: "Fine overall.".into(), ..comment };
+        assert_eq!(
+            feedback_with_detached("plan.md", Some(&general), &[], &[]),
+            "# Annotations on plan.md\n\n## General feedback\n> Fine overall.\nImage: /shots/overview.png\n\n"
+        );
+    }
+
+    #[test]
+    fn a_thread_lists_its_images_after_its_messages() {
+        let source = "Ship the login page.\n";
+        let (mut thread, range) = annotation(source, "login page", Kind::Comment, "Which page?");
+        Thread::default().store_on(&mut thread).expect("thread");
+        thread.plannotator_tui.images = vec!["/shots/login.png".into()];
+        let entries = [Entry { annotation: &thread, lines: None, quote: source[range].to_owned() }];
+        let out = feedback("plan.md", &entries);
+        assert!(
+            out.contains("Thread on: \"login page\"\n- **user:** Which page?\nImage: /shots/login.png\n"),
+            "{out}"
         );
     }
 

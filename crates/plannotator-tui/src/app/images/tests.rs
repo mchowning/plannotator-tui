@@ -118,3 +118,36 @@ fn an_image_rides_with_its_note_into_feedback_and_back_out() {
     assert_eq!(app.send_count(), 1, "removing an image is a change to send");
     std::fs::remove_dir_all(root).expect("cleanup");
 }
+
+#[test]
+fn an_image_on_the_general_comment_is_sent_and_counted() {
+    let (root, mut app, delivery) = file_app("general-image");
+    let image = root.join("docs").join("overview.png");
+    std::fs::write(&image, b"png").expect("image");
+    let image = image.to_string_lossy().into_owned();
+    press(&mut app, 'C');
+    app.handle_event(&Event::Paste("Fine overall.".into())).expect("paste");
+    enter(&mut app);
+
+    // The general comment leads the rail, ahead of any placed note.
+    app.focus = Focus::Rail;
+    app.rail_cursor = 0;
+    press(&mut app, 'I');
+    app.handle_event(&Event::Paste("overview.png".into())).expect("paste");
+    enter(&mut app);
+    assert_eq!(
+        app.open.store.general().expect("general").plannotator_tui.images,
+        std::slice::from_ref(&image)
+    );
+
+    press(&mut app, 'E');
+    let sent = delivery.calls.borrow().last().cloned().expect("sent");
+    assert!(sent.contains(&format!("> Fine overall.\nImage: {image}\n")), "{sent}");
+    let history =
+        std::fs::read_to_string(app.data_dir.join("feedback").join(&app.project).join("index.jsonl"))
+            .expect("history");
+    let last: serde_json::Value =
+        serde_json::from_str(history.lines().last().expect("a line")).expect("history JSON");
+    assert_eq!(last["counts"]["images"], 1);
+    std::fs::remove_dir_all(root).expect("cleanup");
+}

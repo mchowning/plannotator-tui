@@ -116,7 +116,7 @@ impl Feedback {
             .collect();
         let ids = sent.iter().map(|a| a.id.clone()).collect();
         self.count += sent.len();
-        self.images += entries.iter().map(|e| e.annotation.plannotator_tui.images.len()).sum::<usize>();
+        self.images += sent.iter().map(|a| a.plannotator_tui.images.len()).sum::<usize>();
         self.annotations.extend(sent.iter().map(|&a| {
             AnnotationRecord {
                 id: Some(a.id.clone()),
