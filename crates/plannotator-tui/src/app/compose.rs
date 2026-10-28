@@ -1,7 +1,8 @@
 //! The comment box: a small multi-line editor.
 //!
 //! Enter saves; Shift+Enter (where the terminal's keyboard protocol distinguishes it),
-//! Alt+Enter and Ctrl+J insert a new line; Esc cancels. The buffer is a char vec with a
+//! Alt+Enter and Ctrl+J insert a new line; Esc cancels. Alt+Backspace and Ctrl+W delete a
+//! word; Cmd+Backspace (which macOS terminals send as Ctrl+U) deletes to the line start. The buffer is a char vec with a
 //! cursor, wrapped to the box width for display only — the saved body keeps exactly the
 //! newlines the user typed.
 
@@ -52,6 +53,14 @@ impl Compose {
             KeyCode::Char('j' | 'J') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.insert('\n');
             }
+            KeyCode::Backspace if key.modifiers.contains(KeyModifiers::SUPER) => self.delete_to_line_start(),
+            KeyCode::Char('u' | 'U') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.delete_to_line_start();
+            }
+            KeyCode::Backspace if key.modifiers.contains(KeyModifiers::ALT) => self.delete_word_back(),
+            KeyCode::Char('w' | 'W') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.delete_word_back();
+            }
             KeyCode::Backspace => {
                 if self.cursor > 0 {
                     self.cursor -= 1;
@@ -67,11 +76,7 @@ impl Compose {
             KeyCode::Right => self.cursor = (self.cursor + 1).min(self.chars.len()),
             KeyCode::Up => self.move_vertical(-1),
             KeyCode::Down => self.move_vertical(1),
-            KeyCode::Home => {
-                while self.cursor > 0 && self.chars.get(self.cursor - 1) != Some(&'\n') {
-                    self.cursor -= 1;
-                }
-            }
+            KeyCode::Home => self.cursor = self.line_start(),
             KeyCode::End => {
                 while self.cursor < self.chars.len() && self.chars.get(self.cursor) != Some(&'\n') {
                     self.cursor += 1;
@@ -90,6 +95,37 @@ impl Compose {
         for c in text.replace("\r\n", "\n").replace('\r', "\n").chars() {
             self.insert(c);
         }
+    }
+
+    /// Index of the first char on the cursor's logical line.
+    fn line_start(&self) -> usize {
+        self.chars
+            .get(..self.cursor)
+            .unwrap_or_default()
+            .iter()
+            .rposition(|&c| c == '\n')
+            .map_or(0, |i| i + 1)
+    }
+
+    /// Cmd+Backspace / Ctrl+U: delete back to the start of the line, or join with the line
+    /// above when already there.
+    fn delete_to_line_start(&mut self) {
+        let start = match self.line_start() {
+            s if s == self.cursor => self.cursor.saturating_sub(1),
+            s => s,
+        };
+        self.chars.drain(start..self.cursor);
+        self.cursor = start;
+    }
+
+    /// Alt+Backspace / Ctrl+W: delete any whitespace before the cursor, then the word before it.
+    fn delete_word_back(&mut self) {
+        let before = self.chars.get(..self.cursor).unwrap_or_default();
+        let spaces = before.iter().rev().take_while(|c| c.is_whitespace()).count();
+        let word = before.iter().rev().skip(spaces).take_while(|c| !c.is_whitespace()).count();
+        let start = self.cursor - spaces - word;
+        self.chars.drain(start..self.cursor);
+        self.cursor = start;
     }
 
     fn insert(&mut self, c: char) {
@@ -169,6 +205,46 @@ impl Compose {
 #[cfg(test)]
 mod tests {
     use super::Compose;
+    use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    fn press(compose: &mut Compose, code: KeyCode, modifiers: KeyModifiers) {
+        compose.handle_key(KeyEvent::new(code, modifiers));
+    }
+
+    #[test]
+    fn alt_backspace_deletes_the_word_before_the_cursor() {
+        let mut compose = Compose::with_text("fix this  ");
+        press(&mut compose, KeyCode::Backspace, KeyModifiers::ALT);
+        assert_eq!(compose.value(), "fix ");
+    }
+
+    #[test]
+    fn ctrl_w_deletes_the_word_before_the_cursor() {
+        let mut compose = Compose::with_text("fix this");
+        press(&mut compose, KeyCode::Char('w'), KeyModifiers::CONTROL);
+        assert_eq!(compose.value(), "fix ");
+    }
+
+    #[test]
+    fn ctrl_u_deletes_to_the_start_of_the_line_only() {
+        let mut compose = Compose::with_text("first\nsecond line");
+        press(&mut compose, KeyCode::Char('u'), KeyModifiers::CONTROL);
+        assert_eq!(compose.value(), "first\n");
+    }
+
+    #[test]
+    fn cmd_backspace_deletes_to_the_start_of_the_line() {
+        let mut compose = Compose::with_text("first\nsecond");
+        press(&mut compose, KeyCode::Backspace, KeyModifiers::SUPER);
+        assert_eq!(compose.value(), "first\n");
+    }
+
+    #[test]
+    fn deleting_to_line_start_at_line_start_joins_the_lines() {
+        let mut compose = Compose::with_text("first\n");
+        press(&mut compose, KeyCode::Char('u'), KeyModifiers::CONTROL);
+        assert_eq!(compose.value(), "first");
+    }
 
     fn rows(lines: &[&str]) -> Vec<String> {
         lines.iter().map(|&l| l.to_owned()).collect()
