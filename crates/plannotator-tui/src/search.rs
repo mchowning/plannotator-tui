@@ -40,6 +40,6 @@ mod tests {
 
     #[test]
     fn an_empty_query_finds_nothing() {
-        assert!(find("text", "").is_empty());
+        assert_eq!(find("text", ""), vec![]);
     }
 }
