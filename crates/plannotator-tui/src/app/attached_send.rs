@@ -41,7 +41,7 @@ impl App {
         });
         match sent {
             Ok(_) => {
-                self.archive_submission(&mut rendered);
+                self.archive_submission(&mut rendered, "feedback");
                 self.mark_unsent();
                 self.sync_tree_counts();
                 self.status = Some(format!("sent {} annotation(s) → pi", rendered.count));

@@ -34,6 +34,7 @@ pub(crate) enum Action {
     CycleFocus,
     Send,
     SendAndClose,
+    Approve,
     ToggleTree,
     Reload,
     OpenInEditor,
@@ -56,6 +57,9 @@ pub(crate) enum Action {
     ClearAll,
     LooksGood,
     Delete,
+    /// Copy the waiting selection to the clipboard.
+    #[serde(rename = "copy")]
+    CopySelection,
     Yes,
     No,
     Help,
@@ -71,11 +75,12 @@ pub(crate) enum Action {
 }
 
 use Action::{
-    Archive, AttachImage, Back, Bottom, ClearAll, ClearBlock, Comment, Confirm, CycleFocus, Delete, Down,
-    Edit, FinishReview, GeneralComment, Help, Interrupt, Left, LineEnd, LineStart, LooksGood, MoveCursor,
-    Next, No, OpenInEditor, PageDown, PageUp, PickMessage, Previous, QuickOpen, Quit, Reload, Remove,
-    RemoveImage, ResendAll, Resolve, ReviewMenu, Right, Search, Send, SendAndClose, Thread, ToggleHidden,
-    ToggleTree, ToggleUnread, Top, UndoFinish, Up, Visual, VisualLine, WordBack, WordEnd, WordForward, Yes,
+    Approve, Archive, AttachImage, Back, Bottom, ClearAll, ClearBlock, Comment, Confirm, CopySelection,
+    CycleFocus, Delete, Down, Edit, FinishReview, GeneralComment, Help, Interrupt, Left, LineEnd, LineStart,
+    LooksGood, MoveCursor, Next, No, OpenInEditor, PageDown, PageUp, PickMessage, Previous, QuickOpen, Quit,
+    Reload, Remove, RemoveImage, ResendAll, Resolve, ReviewMenu, Right, Search, Send, SendAndClose, Thread,
+    ToggleHidden, ToggleTree, ToggleUnread, Top, UndoFinish, Up, Visual, VisualLine, WordBack, WordEnd,
+    WordForward, Yes,
 };
 
 /// Browsing, before the focused pane gets the key. `thread` and `resolve` act on the
@@ -89,6 +94,7 @@ pub(crate) const GLOBAL: &[Action] = &[
     Send,
     GeneralComment,
     SendAndClose,
+    Approve,
     ReviewMenu,
     ResendAll,
     FinishReview,
@@ -153,7 +159,7 @@ pub(crate) const MOTION: &[Action] =
 /// finish a selection of their own shape and switch one of the other.
 pub(crate) const VISUAL: &[Action] = &[Back, Confirm, Visual, VisualLine];
 /// While a finished selection waits for its kind.
-pub(crate) const TOOLBAR: &[Action] = &[LooksGood, Comment, Delete];
+pub(crate) const TOOLBAR: &[Action] = &[LooksGood, Comment, Delete, CopySelection];
 /// `comment` and `general-comment` both write the general comment, then send.
 pub(crate) const CONFIRM_QUIT: &[Action] = &[Yes, Confirm, Comment, GeneralComment, No, Back];
 /// Before `remove` or `clear-block` takes notes away.
@@ -301,6 +307,7 @@ const DEFAULTS: &[(Action, &[Key])] = &[
     (CycleFocus, &[named(KeyCode::Tab)]),
     (Send, &[ch('E')]),
     (SendAndClose, &[ch('S')]),
+    (Approve, &[ch('A')]),
     (ToggleTree, &[ch('t')]),
     (Reload, &[ch('r')]),
     (OpenInEditor, &[ch('o')]),
@@ -323,6 +330,7 @@ const DEFAULTS: &[(Action, &[Key])] = &[
     (ClearAll, &[ch('X')]),
     (LooksGood, &[ch('a')]),
     (Delete, &[ch('d')]),
+    (CopySelection, &[ch('y')]),
     (Yes, &[ch('y'), ch('Y')]),
     (No, &[ch('n'), ch('N')]),
     (Help, &[ch('?')]),
@@ -336,6 +344,10 @@ const DEFAULTS: &[(Action, &[Key])] = &[
     (Resolve, &[ctrl('r')]),
     (ToggleUnread, &[ch('u')]),
 ];
+
+/// Actions added after configs were written: `approve` (live only in a gated review) and
+/// `copy` (on a waiting selection).
+const LATE: &[Action] = &[Approve, CopySelection];
 
 /// The keys bound to each action. A `[keys]` entry replaces that action's keys and leaves the
 /// others at their defaults; an empty list unbinds the action.
@@ -351,7 +363,19 @@ impl Default for Keymap {
 impl<'de> Deserialize<'de> for Keymap {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let mut keymap = Self::default();
-        keymap.0.extend(BTreeMap::<Action, Vec<Key>>::deserialize(deserializer)?);
+        let entries = BTreeMap::<Action, Vec<Key>>::deserialize(deserializer)?;
+        let user_keys: Vec<Key> = entries.values().flatten().copied().collect();
+        let unset: Vec<Action> = LATE.iter().copied().filter(|late| !entries.contains_key(late)).collect();
+        keymap.0.extend(entries);
+        // Their default keys yield to a config that gives those keys to another action, so
+        // a config that loaded before they existed still loads.
+        for late in unset {
+            let taken =
+                keymap.0.get(&late).is_some_and(|keys| keys.iter().any(|key| user_keys.contains(key)));
+            if taken && keymap.check().is_err() {
+                keymap.0.insert(late, Vec::new());
+            }
+        }
         keymap.check().map_err(serde::de::Error::custom)?;
         Ok(keymap)
     }
@@ -443,6 +467,7 @@ impl Action {
             Self::CycleFocus => "cycle-focus",
             Self::Send => "send",
             Self::SendAndClose => "send-and-close",
+            Self::Approve => "approve",
             Self::ToggleTree => "toggle-tree",
             Self::Reload => "reload",
             Self::OpenInEditor => "open-in-editor",
@@ -465,6 +490,7 @@ impl Action {
             Self::ClearAll => "clear-all",
             Self::LooksGood => "looks-good",
             Self::Delete => "delete",
+            Self::CopySelection => "copy",
             Self::Yes => "yes",
             Self::No => "no",
             Self::Help => "help",

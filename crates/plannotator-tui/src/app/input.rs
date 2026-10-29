@@ -11,6 +11,7 @@ use super::selection::Selection;
 use super::send::SendState;
 use super::{App, Focus, GUTTER, Mode, Pending, TOOLBAR};
 use crate::delivery::Delivery as _;
+use crate::gate::Gate;
 use crate::keys::{self, Action};
 
 impl App {
@@ -118,6 +119,7 @@ impl App {
                 self.open_general(false);
                 return Ok(());
             }
+            Some(Action::Approve) if self.gate == Gate::Approve => return self.approve(),
             // A reply review sends every note, so one the agent already has closes like `q`.
             Some(Action::SendAndClose) if !self.is_file_review() => {
                 if self.send_state == SendState::Sent {
@@ -294,6 +296,10 @@ impl App {
     fn document_key(&mut self, key: KeyEvent) -> Result<()> {
         let page = i64::from(self.geometry.doc.height.max(1));
         // With a selection waiting, the toolbar keys win.
+        if self.pending.is_some() && self.keys.action(&key, keys::TOOLBAR) == Some(Action::CopySelection) {
+            self.copy_pending();
+            return Ok(());
+        }
         if self.pending.is_some()
             && let Some(action) = self.keys.action(&key, keys::TOOLBAR)
             && let Some(&(_, _, _, kind)) = TOOLBAR.iter().find(|item| item.2 == action)
@@ -571,6 +577,9 @@ impl App {
                 let hit = |rect: Option<ratatui::layout::Rect>| {
                     rect.is_some_and(|r| mouse.row == r.y && mouse.column >= r.x && mouse.column < r.right())
                 };
+                if hit(self.geometry.approve_button) {
+                    return self.approve();
+                }
                 if hit(self.geometry.review_button) {
                     self.open_review_menu();
                     return Ok(());
@@ -731,6 +740,7 @@ impl App {
         let end_char = source.get(hi..).and_then(|s| s.chars().next()).map_or(1, char::len_utf8);
         let range = lo..hi + end_char;
         if self.clipboard
+            && self.ui.copy_on_select
             && let Some(text) = source.get(range.clone())
         {
             let _ = crate::delivery::Clipboard.deliver(text);
